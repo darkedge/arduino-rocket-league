@@ -1,9 +1,7 @@
 #include <RH_ASK.h>
 #include <SPI.h>
 
-#define INPUT_LEFT   (5)
-#define INPUT_MIDDLE (6)
-#define INPUT_RIGHT  (7)
+#define INPUT_PIN (7)
 
 // Garden side                                                         
 //         +------------------------------------------------+          
@@ -21,9 +19,7 @@
 // Street side
 
 
-static RH_ASK s_Left(2000, INPUT_LEFT, 12);
-static RH_ASK s_Middle(2000, INPUT_MIDDLE, 12);
-static RH_ASK s_Right(2000, INPUT_RIGHT, 12);
+static RH_ASK s_Driver(2000, INPUT_PIN);
 
 /**
  * Initialization.
@@ -31,17 +27,9 @@ static RH_ASK s_Right(2000, INPUT_RIGHT, 12);
 void setup()
 {
   Serial.begin(9600);
-  if (!s_Left.init())
+  if (!s_Driver.init())
   {
-    Serial.println("RadioHead lib: Left driver init failed");
-  }
-  if (!s_Middle.init())
-  {
-    Serial.println("RadioHead lib: Middle driver init failed");
-  }
-  if (!s_Right.init())
-  {
-    Serial.println("RadioHead lib: Right driver init failed");
+    Serial.println("RadioHead lib: Driver init failed");
   }
 }
 
@@ -54,18 +42,8 @@ void loop()
   uint8_t buf[RH_ASK_MAX_MESSAGE_LEN];
   uint8_t buflen = sizeof(buf);
  
-  if (s_Left.recv(buf, &buflen)) {
-    s_Left.printBuffer("Left sensor received:", buf, buflen);
-    //buf[buflen] = '\0';
-    //Serial.println((const char*)buf);
-  }
-  if (s_Middle.recv(buf, &buflen)) {
-    s_Middle.printBuffer("Middle sensor received:", buf, buflen);
-    //buf[buflen] = '\0';
-    //Serial.println((const char*)buf);
-  }
-  if (s_Right.recv(buf, &buflen)) {
-    s_Right.printBuffer("Right sensor received:", buf, buflen);
+  if (s_Driver.recv(buf, &buflen)) {
+    s_Driver.printBuffer("Received: ", buf, buflen);
     //buf[buflen] = '\0';
     //Serial.println((const char*)buf);
   }
