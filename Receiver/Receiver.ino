@@ -6,19 +6,19 @@
 #define MAGIC_VALUE (0x504c414e) // "PLAN" (PlatteLAN)
 #define LINGER_MS (1000) // 1 second linger time when detecting the ball
 
-// Garden side                                                         
-//         +------------------------------------------------+          
-//         |                                                |          
-//         |                                                |          
-//  +------+                                                +------+   
-//  |      |                                                |      |   
-//  | Left |                    Middle                      |Right |   
-//  |      |                                                |      |   
-//  |      |                                                |      |   
-//  +------+                                                +------+   
-//         |                                                |          
-//         |                                                |          
-//         +------------------------------------------------+          
+// Garden side
+//         +------------------------------------------------+
+//         |                                                |
+//         |                                                |
+//  +------+                                                +------+
+//  |      |                                                |      |
+//  | Left |                    Middle                      |Right |
+//  |      |                                                |      |
+//  |      |                                                |      |
+//  +------+                                                +------+
+//         |                                                |
+//         |                                                |
+//         +------------------------------------------------+
 // Street side
 
 
@@ -48,20 +48,21 @@ static void DoMillisecond()
     Serial.println("Output pin low.");
     digitalWrite(LED_BUILTIN, LOW);
   }
-  
+
   // Keep setting pin every millisecond
   if (s_Linger > 0)
   {
     digitalWrite(OUTPUT_PIN, HIGH);
     s_Linger--;
-  } else if (s_Linger == 0)
+  }
+  else if (s_Linger == 0)
   {
     digitalWrite(OUTPUT_PIN, LOW);
   }
 
   // Print a heartbeat just to make sure we're connected.
   static uint16_t heartBeatTicks;
-  if(heartBeatTicks++ == 5000) // Good enough for the Arduino Nano.
+  if (heartBeatTicks++ == 5000) // Good enough for the Arduino Nano.
   {
     Serial.println("Heartbeat");
     heartBeatTicks = 0;
@@ -76,8 +77,9 @@ void loop()
   //uint8_t buf[RH_ASK_MAX_MESSAGE_LEN];
   uint32_t plan;
   uint8_t buflen = sizeof(plan);
- 
-  if (s_Driver.recv((uint8_t*)&plan, &buflen)) {
+
+  if (s_Driver.recv((uint8_t*)&plan, &buflen))
+  {
     //s_Driver.printBuffer("Received: ", buf, buflen);
     //buf[buflen] = '\0';
     //Serial.println((const char*)buf);
