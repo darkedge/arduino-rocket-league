@@ -19,7 +19,7 @@
  * );
  * 
  * RFID-522
- *   RX SDA SS 8 - Connect to ???
+ *   RX SDA SS 8 - Connect to 3 (chipSelectPin)
  *         SCK 7 - Connect to 4 (sckPin)
  *        MOSI 6 - Connect to 5 (mosiPin)
  * TX SCL MISO 5 - Connect to i+7 (misoPin)
@@ -73,6 +73,8 @@ RFID1 rfid;
 
 unsigned long timerBefore = 0;
 const uint16_t timer = 1000; //1 second
+
+static constexpr auto NUM_RFID = 6;
 
 // Initialize the Ethernet client object
 //WiFiEspClient client;
@@ -240,8 +242,15 @@ void checkRFID(uint16_t i)
   uchar status;
   uchar str[MAX_LEN];
   // Doe een scan
+  // Als een van de sensoren niet goed is aangesloten, krijgen we een timeout, dus doe een tijdmeting
+  unsigned long begin = millis();
   status = rfid.request(PICC_REQIDL, str);
-  Serial.println(i);
+  if (millis() - begin > 100)
+  {
+      Serial.print("Sensor ");
+    Serial.print(i);
+      Serial.println(" is niet goed aangesloten.");
+  }
   if (status == MI_OK) // Scan was goed
   {
     // Krijg de ID
@@ -280,11 +289,11 @@ void checkRFID(uint16_t i)
       Serial.println(code);
     }
 
-    // Effe wachten tussen de scans door
-    // delay(100);
-
     // Zet scanner uit
     rfid.halt();
+
+    // Effe wachten tussen de scans door
+    //delay(100);
   }
 }
 
@@ -293,7 +302,7 @@ void checkRFID(uint16_t i)
 void loop()
 {
   // Ga door alle scanners heen, een voor een
-  for (uint16_t i = 0; i < 4; i++)
+  for (uint16_t i = 0; i < NUM_RFID; i++)
   {
     checkRFID(i);
   }
