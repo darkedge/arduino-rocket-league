@@ -9,18 +9,50 @@
 */
 
 /**
+ * void rfid.begin(
+ *    csnPin = 2, 
+ *    sckPin = 4,
+ *    mosiPin = 5,
+ *    misoPin = i + 7,
+ *    chipSelectPin = 3,
+ *    NRSTPD = 6
+ * );
+ * 
  * RFID-522
- *   RX SDA SS 8-
- *         SCK 7
- *        MOSI 6
- * TX SCL MISO 5
- *         IRQ 4
- *         GND 3
- *         RST 2
- *         VCC 1
+ *   RX SDA SS 8 - Connect to ???
+ *         SCK 7 - Connect to 4 (sckPin)
+ *        MOSI 6 - Connect to 5 (mosiPin)
+ * TX SCL MISO 5 - Connect to i+7 (misoPin)
+ *         IRQ 4 - <disconnected>
+ *         GND 3 - Connect to ground
+ *         RST 2 - Connect to 6 (NRSTPD - Not Reset and Power-down)
+ *         VCC 1 - Connect to 3.3V
+ *
+ * VCC supplies power for the module. This can be anywhere from 2.5 to 3.3 volts. You can connect it
+ * to 3.3V output from your Arduino. Remember connecting it to 5V pin will likely destroy your module!
+ *
+ * RST is an input for Reset and power-down. When this pin goes low, hard power-down is enabled.
+ * This turns off all internal current sinks including the oscillator and the input pins are
+ * disconnected from the outside world. On the rising edge, the module is reset.
+ *
+ * GND is the Ground Pin and needs to be connected to GND pin on the Arduino.
+ *
+ * IRQ is an interrupt pin that can alert the microcontroller when RFID tag comes into its vicinity.
+ *
+ * MISO / SCL / Tx pin acts as Master-In-Slave-Out when SPI interface is enabled, acts as serial
+ * clock when I2C interface is enabled and acts as serial data output when UART interface is enabled.
+ *
+ * MOSI (Master Out Slave In) is SPI input to the RC522 module.
+ *
+ * SCK (Serial Clock) accepts clock pulses provided by the SPI bus Master i.e. Arduino.
+ *
+ * SS / SDA / Rx pin acts as Signal input when SPI interface is enabled, acts as serial data when
+ * I2C interface is enabled and acts as serial data input when UART interface is enabled. This pin
+ * is usually marked by encasing the pin in a square so it can be used as a reference for
+ * identifying the other pins.
  */
 
-#include <WiFiEsp.h>
+//#include <WiFiEsp.h>
 #include <SPI.h>
 #include <rfid1.h>
 RFID1 rfid;
@@ -34,16 +66,44 @@ RFID1 rfid;
 #if 0
   char ssid[] = "Ziggo25706";   // SSID
   char pass[] = "tE7fVVp}7cLL"; // Password
-  int status = WL_IDLE_STATUS;     // the Wifi radio's status
+  uint16_t status = WL_IDLE_STATUS;     // the Wifi radio's status
 
   char server[] = "192.168.178.17";
 #endif
 
 unsigned long timerBefore = 0;
-const int timer = 1000; //1 second
+const uint16_t timer = 1000; //1 second
 
 // Initialize the Ethernet client object
-WiFiEspClient client;
+//WiFiEspClient client;
+
+#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
+static uint32_t s_DoelLinks[] =
+{
+  123123123,
+  12546235,
+  2356326,
+  23623723,
+  236235
+};
+static uint32_t s_DoelRechts[] =
+{
+  643145847,
+  123123123,
+  12546235,
+  2356326,
+  23623723,
+  236235
+};
+static uint32_t s_MiddenStip[] =
+{
+  2200328713,
+  12546235,
+  2356326,
+  23623723,
+  236235
+};
 
 void setup()
 {
@@ -52,10 +112,11 @@ void setup()
   // initialize serial for ESP module
   Serial1.begin(9600);
   // initialize ESP module
-  WiFi.init(&Serial1);
+  //WiFi.init(&Serial1);
 
   //SPI.begin();
 
+#if 0
   // check for the presence of the shield
   if (WiFi.status() == WL_NO_SHIELD)
   {
@@ -72,11 +133,13 @@ void setup()
     // Connect to WPA/WPA2 network
     status = WiFi.begin(ssid, pass);
   }
+#endif
 
-  Serial.println("You're connected to the network");
-
+  //Serial.println("You're connected to the network");
+  Serial.println("Hello World!");
   //  printWifiStatus();
 
+#if 0
   if (client.connect(server, 80))
   {
     Serial.println("connected");
@@ -85,79 +148,12 @@ void setup()
   {
     Serial.println("connection failed");
   }
-
+#endif
 }
 
-bool IsDoelLinks(uint32_t code)
+bool CodeInList(uint32_t* codes, uint16_t aantal_codes, uint32_t code)
 {
-  // Hier kun je je codes invullen die we uitprinten tijdens het scannen
-  static uint32_t codes[] =
-  {
-    123123123,
-    12546235,
-    2356326,
-    23623723,
-    236235
-  };
-
-  // Bereken het aantal codes in de array
-  int aantal_codes = sizeof(codes) / sizeof(uint32_t);
-  for (int i = 0; i < aantal_codes; i++)
-  {
-    if (code == codes[i])
-    {
-      // Dit is een van de codes die we zochten
-      return true;
-    }
-  }
-
-  // Geen matchende code gevonden
-  return false;
-}
-
-bool IsDoelRechts(uint32_t code)
-{
-  // Hier kun je je codes invullen die we uitprinten tijdens het scannen
-  static uint32_t codes[] =
-  {
-    643145847,
-    123123123,
-    12546235,
-    2356326,
-    23623723,
-    236235
-  };
-
-  // Bereken het aantal codes in de array
-  int aantal_codes = sizeof(codes) / sizeof(uint32_t);
-  for (int i = 0; i < aantal_codes; i++)
-  {
-    if (code == codes[i])
-    {
-      // Dit is een van de codes die we zochten
-      return true;
-    }
-  }
-
-  // Geen matchende code gevonden
-  return false;
-}
-
-bool IsMiddenStip(uint32_t code)
-{
-  // Hier kun je je codes invullen die we uitprinten tijdens het scannen
-  static uint32_t codes[] =
-  {
-    2200328713,
-    12546235,
-    2356326,
-    23623723,
-    236235
-  };
-
-  // Bereken het aantal codes in de array
-  int aantal_codes = sizeof(codes) / sizeof(uint32_t);
-  for (int i = 0; i < aantal_codes; i++)
+  for (uint16_t i = 0; i < aantal_codes; i++)
   {
     if (code == codes[i])
     {
@@ -206,6 +202,7 @@ void post(bool links, bool midden, bool rechts)
   Serial.println("connecting...");
   // client.println("POST /rlrl/radio_Data.php HTTP/1.1");
 
+#if 0
   // bouw de post string
   String PostData = "L=";
   PostData = PostData + detectGoalLinks;
@@ -223,6 +220,7 @@ void post(bool links, bool midden, bool rechts)
   client.println("Content-Length: " + String(PostData.length()));
   client.println();
   client.println(PostData);
+#endif
 
   //  client.print("Content-Length: ");
   // client.println(PostData.length());
@@ -233,16 +231,17 @@ void post(bool links, bool midden, bool rechts)
 
 }
 
-void checkRFID(int i)
+void checkRFID(uint16_t i)
 {
   // Zet scanner aan
-  rfid.begin(2, 4, 5, i + 7, 3, 6);
+  rfid.begin(2, 4, 5, i + 7, 3, 6); // 7, 8, 9, 10
   rfid.init();
 
   uchar status;
   uchar str[MAX_LEN];
   // Doe een scan
   status = rfid.request(PICC_REQIDL, str);
+  Serial.println(i);
   if (status == MI_OK) // Scan was goed
   {
     // Krijg de ID
@@ -252,19 +251,15 @@ void checkRFID(int i)
       uint32_t code;
       memcpy(&code, str, 4); // Kopieer naar iets dat we kunnen vergelijken
 
-      bool goalLinks = IsDoelLinks(code);
-      bool middenStip = IsMiddenStip(code);
-      bool goalRechts = IsDoelRechts(code);
-
-      if (goalLinks)
+      if (CodeInList(s_DoelLinks, COUNT_OF(s_DoelLinks), code))
       {
         Serial.println("Bal zit in doel links");
       }
-      if (middenStip)
+      else if (CodeInList(s_MiddenStip, COUNT_OF(s_MiddenStip), code))
       {
         Serial.println("Bal zit in doel middenstip");
       }
-      if (goalRechts)
+      else if (CodeInList(s_DoelRechts, COUNT_OF(s_DoelRechts), code))
       {
         Serial.println("Bal zit op Rechts");
       }
@@ -273,7 +268,7 @@ void checkRFID(int i)
       unsigned long timerNow = millis();
       if ((unsigned long)(timerNow - timerBefore) >= timer)
       {
-        post(goalLinks, middenStip, goalRechts);
+        //post(goalLinks, middenStip, goalRechts);
         timerBefore = millis();
 
       }
@@ -298,30 +293,29 @@ void checkRFID(int i)
 void loop()
 {
   // Ga door alle scanners heen, een voor een
-  for (int i = 0; i < 4; i++)
+  for (uint16_t i = 0; i < 4; i++)
   {
     checkRFID(i);
   }
-
-
-
 }
 
 
 void printWifiStatus()
 {
   // print the SSID of the network you're attached to
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
+  //Serial.print("SSID: ");
+  //Serial.println(WiFi.SSID());
 
   // print your WiFi shield's IP address
+#if 0
   IPAddress ip = WiFi.localIP();
   Serial.print("IP Address: ");
   Serial.println(ip);
+#endif
 
   // print the received signal strength
-  long rssi = WiFi.RSSI();
-  Serial.print("Signal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
+  //long rssi = WiFi.RSSI();
+  //Serial.print("Signal strength (RSSI):");
+  //Serial.print(rssi);
+  //Serial.println(" dBm");
 }
