@@ -10,14 +10,14 @@
 
 /**
  * void rfid.begin(
- *    csnPin = 2, 
+ *    csnPin = 2,
  *    sckPin = 4,
  *    mosiPin = 5,
  *    misoPin = i + 7,
  *    chipSelectPin = 3,
  *    NRSTPD = 6
  * );
- * 
+ *
  * RFID-522
  *   RX SDA SS 8 - Connect to 3 (chipSelectPin)
  *         SCK 7 - Connect to 4 (sckPin)
@@ -247,9 +247,9 @@ void checkRFID(uint16_t i)
   status = rfid.request(PICC_REQIDL, str);
   if (millis() - begin > 100)
   {
-      Serial.print("Sensor ");
+    Serial.print("Sensor ");
     Serial.print(i);
-      Serial.println(" is niet goed aangesloten.");
+    Serial.println(" is niet goed aangesloten.");
   }
   if (status == MI_OK) // Scan was goed
   {

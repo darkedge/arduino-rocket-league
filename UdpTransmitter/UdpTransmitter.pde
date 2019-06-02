@@ -16,7 +16,7 @@ void setup()
 
 void draw()
 {
-  udpTX.send(message,ip,port);
+  udpTX.send(message, ip, port);
   delay(1000);
   loop();
 }
