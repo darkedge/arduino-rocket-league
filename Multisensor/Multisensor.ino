@@ -74,7 +74,7 @@ RFID1 rfid;
 unsigned long timerBefore = 0;
 const uint16_t timer = 1000; //1 second
 
-static constexpr auto NUM_RFID = 6;
+static constexpr auto NUM_RFID = 9;
 
 // Initialize the Ethernet client object
 //WiFiEspClient client;
@@ -301,9 +301,9 @@ void checkRFID(uint16_t i)
 
 void loop()
 {
-  // Ga door alle scanners heen, een voor een
   for (uint16_t i = 0; i < NUM_RFID; i++)
   {
+    // Deze iteraties duren ongeveer ~25 ms elk, soms met spikes van 62-63 ms.
     checkRFID(i);
   }
 }
