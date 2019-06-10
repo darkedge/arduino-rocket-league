@@ -22,6 +22,7 @@ import javax.swing.filechooser.FileFilter;
 import org.gamecontrolplus.Configuration;
 import org.gamecontrolplus.ControlDevice;
 import org.gamecontrolplus.ControlIO;
+import java.nio.*;
 
 
 GLabel lblPath, lblSketch;
@@ -172,16 +173,17 @@ public void draw()
       RLController controller = devices[i];
       if (controller != null)
       {
-        byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, -127.0f, 127.0f);
-        byte forwardBackward = 0;
+        byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, 179.0f, 0.0f);
+        short forwardBackward = 0;
         byte boost = controller.device.getButton("Boost").pressed() ? (byte)1 : (byte)0;
 
         switch (controller.deviceType)
         {
         case PS4: // PS4 controller
-          float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 127.0f);
-          float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -127.0f);
-          forwardBackward = (byte)(forward + backward);
+          float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 1024.0f);
+          //float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -127.0f);
+          //forwardBackward = (byte)(forward + backward);
+          forwardBackward = (short)forward;
           break;
         case Xbox360: // Xbox 360 controller
           // TODO nigga
@@ -192,7 +194,13 @@ public void draw()
         }
 
         //println(horizontal + " " + forwardBackward + " " + boost);
-        udpTX.send(new byte[] {horizontal, forwardBackward, boost}, ips[i], port);
+        ByteBuffer bb = ByteBuffer
+                        .allocate(4)
+                        .order(ByteOrder.LITTLE_ENDIAN)
+                        .put(horizontal)
+                        .putShort(forwardBackward)
+                        .put(boost);
+        udpTX.send(bb.array(), ips[i], port);
       }
     }
 
