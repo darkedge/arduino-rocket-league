@@ -64,7 +64,7 @@ void setup()
 {
   ControlIO control = ControlIO.getInstance(this);
   udpTX = new UDP(this);
-  udpTX.log(true);
+  //udpTX.log(true);
 
   G4P.messagesEnabled(false);
   G4P.setGlobalColorScheme(GCScheme.GREEN_SCHEME);
@@ -174,16 +174,16 @@ public void draw()
       {
         byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, -127.0f, 127.0f);
         byte forwardBackward = 0;
-        byte boost = (byte)controller.device.getButton("Boost").getValue();
+        byte boost = controller.device.getButton("Boost").pressed() ? (byte)1 : (byte)0;
 
         switch (controller.deviceType)
         {
         case PS4: // PS4 controller
           float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 127.0f);
-          float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, -127.0f, 0.0f);
+          float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -127.0f);
           forwardBackward = (byte)(forward + backward);
           break;
-        case Xbox360:
+        case Xbox360: // Xbox 360 controller
           // TODO nigga
           break;
         default:
@@ -191,6 +191,7 @@ public void draw()
           break;
         }
 
+        //println(horizontal + " " + forwardBackward + " " + boost);
         udpTX.send(new byte[] {horizontal, forwardBackward, boost}, ips[i], port);
       }
     }
