@@ -28,11 +28,22 @@ GLabel lblPath, lblSketch;
 int panelHeight;
 GButton btnSelSketch;
 
-public static final int NUM_CARS = 4;
-private ControlDevice[] devices = new ControlDevice[NUM_CARS];
+private enum EDeviceType
+{
+  PS4,
+  Xbox360,
+};
+private class RLController
+{
+  EDeviceType deviceType;
+  ControlDevice device;
+}
+private static final int NUM_CARS = 4;
+private RLController[] devices = new RLController[NUM_CARS];
+private boolean started = false;
 
 // Ethernet configuratie van de auto (destination)
-String ip = "192.168.1.102";
+String[] ips = {"192.168.1.102", "192.168.1.103", "192.168.1.104", "192.168.1.105"};
 int port = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
 String message = new String("Hello");
@@ -51,6 +62,7 @@ public void settings()
 
 void setup()
 {
+  ControlIO control = ControlIO.getInstance(this);
   udpTX = new UDP(this);
   udpTX.log(true);
 
@@ -91,7 +103,7 @@ private void createSelectionInterface()
 
 private void addControllers()
 {
-  control = ControlIO.getInstance(this);
+  ControlIO control = ControlIO.getInstance(this);
   String[] list = {"ps4", "xbox360"}; // Namen van configuratie bestanden
   int numControllers = 0;
   for (String string : list) // Alle configuraties proberen
@@ -99,9 +111,10 @@ private void addControllers()
     while (true)
     {
       // Find a device that matches the configuration file
+      ControlDevice gpad = null;
       try
       {
-        ControlDevice gpad = control.getMatchedDeviceSilent(string);
+        gpad = control.getMatchedDeviceSilent(string);
       }
       catch (NullPointerException e)
       {
@@ -110,7 +123,20 @@ private void addControllers()
 
       if (gpad != null)
       {
-        devices[numControllers++] = gpad;
+        RLController controller = devices[numControllers++] = new RLController();
+        controller.device = gpad;
+        if (string.equals("ps4"))
+        {
+          controller.deviceType = EDeviceType.PS4;
+        }
+        else if (string.equals("xbox360"))
+        {
+          controller.deviceType = EDeviceType.Xbox360;
+        }
+        else
+        {
+          println("Marco fucking idioot je hebt geen case toegevoegd voor deze control scheme");
+        }
         println(string + " controller gevonden: " + gpad.getName());
         if (numControllers == NUM_CARS)
         {
@@ -129,26 +155,63 @@ public void handleButtonEvents(GButton button, GEvent event)
 {
   if (button == btnSelSketch && event == GEvent.CLICKED)
   {
-    addControllers();
+    if (!started)
+    {
+      addControllers();
+      started = true;
+    }
   }
 }
 
 public void draw()
 {
-  if (false)
+  if (started)
   {
-    udpTX.send(message, ip, port);
+    for (int i = 0; i < NUM_CARS; i++)
+    {
+      RLController controller = devices[i];
+      if (controller != null)
+      {
+        byte horizontal = 0;
+        byte forward = 0;
+        byte backward = 0;
+        byte boost = 0;
+        
+        switch (controller.deviceType)
+        {
+        case PS4: // PS4 controller
+          controller.device.getSlider
+          
+          
+          
+          
+          
+          break;
+        case Xbox360:
+          //
+          break;
+        default:
+          println("Marco doe nou eens niet zo stom, missing case bij controller switch in draw()");
+          break;
+        }
+        
+        
+        udpTX.send(message, ips[i], port);
+      }
+    }
 
-    background(255, 200, 255);
 
-    gpad.getButton("PUPILSIZE1").pressed();
-    gpad.getButton("PUPILSIZE2").pressed();
-    gpad.getSlider("XPOS").getValue();
-    gpad.getSlider("YPOS").getValue();
-    gpad.getSlider("EYELID").getValue();
 
-    delay(1000);
-    loop();
+    //background(255, 200, 255);
+
+    //gpad.getButton("PUPILSIZE1").pressed();
+    //gpad.getButton("PUPILSIZE2").pressed();
+    //gpad.getSlider("XPOS").getValue();
+    //gpad.getSlider("YPOS").getValue();
+    //gpad.getSlider("EYELID").getValue();
+
+    //delay(1000);
+    //loop();
   }
 
 
