@@ -24,11 +24,12 @@ import org.gamecontrolplus.ControlDevice;
 import org.gamecontrolplus.ControlIO;
 
 
-ControlIO control;
-ControlDevice gpad;
 GLabel lblPath, lblSketch;
 int panelHeight;
 GButton btnSelSketch;
+
+public static final int NUM_CARS = 4;
+private ControlDevice[] devices = new ControlDevice[NUM_CARS];
 
 // Ethernet configuratie van de auto (destination)
 String ip = "192.168.1.102";
@@ -42,31 +43,10 @@ List<TSelectEntry> deviceEntries =  new ArrayList<TSelectEntry>();
 
 public void settings()
 {
-  control = ControlIO.getInstance(this);
+  ControlIO control = ControlIO.getInstance(this);
   panelHeight = 40;
   int appHeight = control.getNumberOfDevices() * 20 + 40 + panelHeight;
   size(800, appHeight);
-}
-
-void startGame()
-{
-  //size(400, 240);
-  // Initialise the ControlIO
-  control = ControlIO.getInstance(this);
-  // Find a device that matches the configuration file
-  try
-  {
-    gpad = control.getMatchedDevice("gamepad_eyes");
-  }
-  catch (NullPointerException e)
-  {
-    // Do nothing
-  }
-  if (gpad == null)
-  {
-    println("No suitable device configured");
-    System.exit(-1); // End the program NOW!
-  }
 }
 
 void setup()
@@ -77,7 +57,7 @@ void setup()
   G4P.messagesEnabled(false);
   G4P.setGlobalColorScheme(GCScheme.GREEN_SCHEME);
   if (frame != null)
-    surface.setTitle("Game Input Device Configurator");
+    surface.setTitle("Rocket League");
   registerMethod("dispose", this);
   createSelectionInterface();
   TConfigUI.pathToSketch = sketchPath("");
@@ -85,7 +65,11 @@ void setup()
   // Add entries for devices added
   for (ControlDevice d : devices)
   {
-    if (d != null && !d.getTypeName().equalsIgnoreCase("keyboard"))
+    if (d != null &&
+        !d.getTypeName().equalsIgnoreCase("keyboard") &&
+        !d.getTypeName().equalsIgnoreCase("unknown") &&
+        !d.getTypeName().equalsIgnoreCase("mouse")
+       )
       deviceEntries.add(new TSelectEntry(this, control, d));
   }
   // Reposition entries on screen
@@ -97,26 +81,7 @@ void setup()
 
 private void createSelectionInterface()
 {
-  //GLabel lblPathTag = new GLabel(this, 0, 0, 100, 20, "Sketch Path : ");
-  //lblPathTag.setOpaque(true);
-  //lblPathTag.setTextBold();
-  //GLabel lblSketchTag = new GLabel(this, 0, 20, 100, 20, "Sketch Name : ");
-  //lblSketchTag.setOpaque(true);
-  //lblSketchTag.setTextBold();
-
-  //lblPath = new GLabel(this, 100, 0, width - 100, 20);
-  //lblPath.setLocalColorScheme(G4P.PURPLE_SCHEME);
-  //lblPath.setOpaque(true);
-  //lblPath.setText(sketchPath(""));
-  //lblPath.setTextAlign(GAlign.LEFT, GAlign.MIDDLE);
-
-  //lblSketch = new GLabel(this, 100, 20, width - 100, 20);
-  //lblSketch.setLocalColorScheme(G4P.PURPLE_SCHEME);
-  //lblSketch.setOpaque(true);
-  //lblSketch.setText(getClass().getSimpleName() + ".pde");
-  //lblSketch.setTextAlign(GAlign.LEFT, GAlign.MIDDLE);
-
-  //btnSelSketch = new GButton(this, width - 60, 4, 56, 33, "Select Sketch");
+  btnSelSketch = new GButton(this, width - 60, 4, 56, 33, "Start game");
 
   GLabel lblControls = new GLabel(this, 0, panelHeight, width, 20);
   lblControls.setText("Game Devices Available");
@@ -124,11 +89,47 @@ private void createSelectionInterface()
   lblControls.setTextBold();
 }
 
+private void addControllers()
+{
+  control = ControlIO.getInstance(this);
+  String[] list = {"ps4", "xbox360"}; // Namen van configuratie bestanden
+  int numControllers = 0;
+  for (String string : list) // Alle configuraties proberen
+  {
+    while (true)
+    {
+      // Find a device that matches the configuration file
+      try
+      {
+        ControlDevice gpad = control.getMatchedDeviceSilent(string);
+      }
+      catch (NullPointerException e)
+      {
+        break;
+      }
+
+      if (gpad != null)
+      {
+        devices[numControllers++] = gpad;
+        println(string + " controller gevonden: " + gpad.getName());
+        if (numControllers == NUM_CARS)
+        {
+          return;
+        }
+      }
+      else
+      {
+        break;
+      }
+    }
+  }
+}
+
 public void handleButtonEvents(GButton button, GEvent event)
 {
   if (button == btnSelSketch && event == GEvent.CLICKED)
   {
-    selectSketch();
+    addControllers();
   }
 }
 
@@ -149,6 +150,7 @@ public void draw()
     delay(1000);
     loop();
   }
+
 
   background(255, 255, 220);
 
@@ -171,28 +173,6 @@ public void dispose()
     {
       entry.winCofig.close();
       entry.winCofig = null;
-    }
-  }
-}
-
-public void selectSketch()
-{
-  String selected = G4P.selectInput("Select main sketch (pde) file", "pde", "Processing sketch");
-  if (selected != null)
-  {
-    File file = new File(selected);
-    // Get the name of the parent folder
-    String sketchFolderName = file.getParent();
-    // Get the filename without the extension
-    String filename = file.getName();
-    int index = filename.lastIndexOf('.');
-    String sketchName = (index > 0) ? filename.substring(0, index) : filename;
-    // See if we have selected the main sketch pde
-    if (sketchFolderName.endsWith(sketchName))
-    {
-      TConfigUI.pathToSketch = sketchFolderName;
-      lblPath.setText(sketchFolderName);
-      lblSketch.setText(filename);
     }
   }
 }

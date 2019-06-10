@@ -1,0 +1,5 @@
+Wired PS4 Controller
+Horizontal	Links/rechts sturen	3	SLIDER	X Axis	0	1.0	0.0
+Forward	Vooruit/gas geven	3	SLIDER	Y Rotation	0	1.0	0.0
+Backward	Achteruit/remmen	3	SLIDER	X Rotation	0	1.0	0.0
+Boost	Boost	1	BUTTON	Button 2	0	0.0	0.0

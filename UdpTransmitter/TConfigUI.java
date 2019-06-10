@@ -209,6 +209,11 @@ public class TConfigUI implements PConstants, TConstants {
       if (current != null) {
         start = current;
         dragging = true;
+        if (start.conTo != null)
+        {
+          start.conTo.conTo = null;
+          start.conTo = null;
+        }
       }
       break;
     case MouseEvent.RELEASE:
@@ -288,20 +293,20 @@ public class TConfigUI implements PConstants, TConstants {
     device.open();
     controlIO = entry.controlIO;
     float spaceForInputs = ELEMENT_UI_GAP;
-    int nbrConnectors = 0;
+    int nbrConnectors = 5;
     // Scan through controls to calculate the window height needed
     for (ControlInput input : device.getInputs()) {
       if (input instanceof ControlHat) {
         spaceForInputs += 5 * INPUT_UI_HEIGHT + ELEMENT_UI_GAP + 2;
-        nbrConnectors ++;
+        //nbrConnectors ++;
       }
       else  if (input instanceof ControlButton) {
         spaceForInputs += INPUT_UI_HEIGHT + ELEMENT_UI_GAP + 2;
-        nbrConnectors++;
+        //nbrConnectors++;
       }
       else  if (input instanceof ControlSlider) {
         spaceForInputs += 4 * INPUT_UI_HEIGHT + ELEMENT_UI_GAP + 2;
-        nbrConnectors++;
+        //nbrConnectors++;
       }
       else
         System.out.println("Unknown input " + input);
@@ -337,7 +342,7 @@ public class TConfigUI implements PConstants, TConstants {
     window.addPreHandler(this, "pre");
     window.noLoop();
     tabManager = new GTabManager();
-    G4P.setCursor(CROSS);	
+    //G4P.setCursor(CROSS);	
     nbrWindows++;
 
     // Create the control panel
@@ -404,12 +409,38 @@ public class TConfigUI implements PConstants, TConstants {
     }
     // Create and add descriptors to UI 
     px = 10;
-    py = ELEMENT_UI_GAP + (spaceNeeded - spaceForDescs) / 2; 
-    for (int i = 0; i < nbrConnectors; i++) {
-      TDescriptor ui = new TDescriptor(this, px, py);
+    py = ELEMENT_UI_GAP + (spaceNeeded - spaceForDescs) / 2;
+    
+    
+    
+    
+    {
+      TDescriptor ui = new TDescriptor(this, "Horizontal", "Links/rechts sturen", px, py);
+      uiElements.add(ui);
+      py += ui.UI_HEIGHT + ELEMENT_UI_GAP;
+      
+      ui = new TDescriptor(this, "Forward", "Vooruit/gas geven", px, py);
+      uiElements.add(ui);
+      py += ui.UI_HEIGHT + ELEMENT_UI_GAP;
+      
+      ui = new TDescriptor(this, "Backward", "Achteruit/remmen", px, py);
+      uiElements.add(ui);
+      py += ui.UI_HEIGHT + ELEMENT_UI_GAP;
+      
+      ui = new TDescriptor(this, "ForwardBackward", "Voor controllers waarbij vooruit en achteruit op dezelfde as zitten", px, py);
+      uiElements.add(ui);
+      py += ui.UI_HEIGHT + ELEMENT_UI_GAP;
+      
+      ui = new TDescriptor(this, "Boost", "Boost", px, py);
       uiElements.add(ui);
       py += ui.UI_HEIGHT + ELEMENT_UI_GAP;
     }
+    
+    
+    
+    
+    
+    
     // Now create list of connectors
     for (TBase ui : uiElements)
       for (TConnector c : ui.connectors)

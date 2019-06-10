@@ -31,7 +31,7 @@ public class TSelectEntry implements Comparable<TSelectEntry> {
   public void configClick(GButton source, GEvent event) {
     if (winCofig == null) {
       winCofig = new TConfigUI(app, this);
-      source.setVisible(false);
+      //source.setVisible(false);
     }
   }
 
