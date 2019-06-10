@@ -1,109 +1,331 @@
-// RCRxESP8266
-//
-// Sample RCRx RCOIP receiver
-// Receives RCOIP commmands on an ESP8266 device and uses them to set servo
-// and digital outputs.
-//
-// This simple example handles 5 RCOIP receiver channels. Its configured like this:
-// 4 Servos (receiver channels 0, 1, 2, 3)
-// 1 Digital output (horn) (receiver channel 4)
-// which is consistent with the default setup of the RCTx iPhone app.
-//
-// However, almost any combination of up to a large number of channels can be used as you see fit.
-// Output devices supported are:
-// analog output pins
-// digital output pins
-// Servo
-// AccelStepper speed
-// AccelStepper position
-// HBridge to drive 2 other outputs
-//
-// Also you can string varies objects together top modify channel values as
-// they make their way from the receiver to an output:
-// Limiter
-// Inverter
-// This can be used off the shelf with the RCTx transmitter app for iPhone
-// dont forget to set the destination IP address in the RCTx transmitter app profile
-//
-// Copyright (C) 2018 Mike McCauley
+/*
+ WiFiEsp example: WebClientRepeating
 
+ This sketch connects to a web server and makes an HTTP request
+ using an Arduino ESP8266 module.
+ It repeats the HTTP call each 10 seconds.
 
-#include <ESP8266Transceiver.h>
-#include <RCRx.h>
-#include <Servo.h>
-#include <ServoSetter.h>
-#include <AnalogSetter.h>
-#include <DigitalSetter.h>
-#include <AccelStepper.h>
+ For more details see: http://yaab-arduino.blogspot.com/p/wifiesp.html
+*/
 
-// Declare the receiver object. It will handle messages received from the
-// transceiver and turn them into channel outputs.
-// The receiver and transceiver obects are connected together during setup()
-RCRx rcrx;
+/**
+ * void rfid.begin(
+ *    csnPin = 2,
+ *    sckPin = 4,
+ *    mosiPin = 5,
+ *    misoPin = i + 7,
+ *    chipSelectPin = 3,
+ *    NRSTPD = 6
+ * );
+ *
+ * RFID-522
+ *   RX SDA SS 8 - Connect to 3 (chipSelectPin)
+ *         SCK 7 - Connect to 4 (sckPin)
+ *        MOSI 6 - Connect to 5 (mosiPin)
+ * TX SCL MISO 5 - Connect to i+7 (misoPin)
+ *         IRQ 4 - <disconnected>
+ *         GND 3 - Connect to ground
+ *         RST 2 - Connect to 6 (NRSTPD - Not Reset and Power-down)
+ *         VCC 1 - Connect to 3.3V
+ *
+ * VCC supplies power for the module. This can be anywhere from 2.5 to 3.3 volts. You can connect it
+ * to 3.3V output from your Arduino. Remember connecting it to 5V pin will likely destroy your module!
+ *
+ * RST is an input for Reset and power-down. When this pin goes low, hard power-down is enabled.
+ * This turns off all internal current sinks including the oscillator and the input pins are
+ * disconnected from the outside world. On the rising edge, the module is reset.
+ *
+ * GND is the Ground Pin and needs to be connected to GND pin on the Arduino.
+ *
+ * IRQ is an interrupt pin that can alert the microcontroller when RFID tag comes into its vicinity.
+ *
+ * MISO / SCL / Tx pin acts as Master-In-Slave-Out when SPI interface is enabled, acts as serial
+ * clock when I2C interface is enabled and acts as serial data output when UART interface is enabled.
+ *
+ * MOSI (Master Out Slave In) is SPI input to the RC522 module.
+ *
+ * SCK (Serial Clock) accepts clock pulses provided by the SPI bus Master i.e. Arduino.
+ *
+ * SS / SDA / Rx pin acts as Signal input when SPI interface is enabled, acts as serial data when
+ * I2C interface is enabled and acts as serial data input when UART interface is enabled. This pin
+ * is usually marked by encasing the pin in a square so it can be used as a reference for
+ * identifying the other pins.
+ */
 
-// Declare the transceiver object, in this case the built-in ESP8266 WiFi
-// transceiver.
-// Note: other type of transceiver are supported by RCRx
-// It will create a WiFi Access Point with SSID of "RCArduino", that you can connect to with the
-// password "xyzzyxyzzy"
-// on channel 1
-// The default IP address of this transceiver is 192.168.4.1/24
-// These defaults can be changed by editing ESP8266Transceiver.cpp
-// The reported RSSI is in dBm above -60dBm
-// If you are using the RCTx transmitter app for iPhone
-// dont forget to set the destination IP address in the RCTx transmitter app profile
-ESP8266Transceiver transceiver;
+#include <WiFiEsp.h>
+#include <SPI.h>
 
+#if 0
+// Emulate Serial1 on pins 6/7 if not present
+#ifndef HAVE_HWSERIAL1
+  #include "SoftwareSerial.h"
+  SoftwareSerial Serial1(2, 13); // RX, TX
+#endif
+#endif
 
-// Definitions for the ESP8266 output pins we want to use to control our devices
-// The battery voltage is measured on the ESP8266 ADC pin
-#define HORN_PIN    12
-#define NUM_OUTPUTS 2
-#define SERVO_0_PIN 13
+#if 1
+  char ssid[] = "Ziggo25706";   // SSID
+  char pass[] = "tE7fVVp}7cLL"; // Password
+  uint16_t status = WL_IDLE_STATUS;     // the Wifi radio's status
 
-// There are 5 outputs for 5 channels:
-// 4 Servos (receiver channels 0, 1, 2, 3)
-// 1 Digital output (horn) (receiver channel 4)
+  char server[] = "192.168.178.17";
+#endif
 
-// These is the low level Servo driver
-Servo servo;
+unsigned long timerBefore = 0;
+const uint16_t timer = 1000; //1 second
 
-// These Setter set the output value onto a Servo
-ServoSetter servoSetter0(&servo);
+static constexpr auto NUM_RFID = 9;
 
-// This setter sets a digital output
-DigitalSetter horn(HORN_PIN);
+// Initialize the Ethernet client object
+WiFiEspClient client;
 
-// This array of all the outputs is in channel-number-order so RCRx knows which
-// Setter to call for each channel received. We define an array of 5 Setters for receiver channels 0 through 4
-Setter*  outputs[NUM_OUTPUTS] = {&servoSetter0, &horn};
+#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
+static uint32_t s_DoelLinks[] =
+{
+  123123123,
+  12546235,
+  2356326,
+  23623723,
+  236235
+};
+static uint32_t s_DoelRechts[] =
+{
+  643145847,
+  123123123,
+  12546235,
+  2356326,
+  23623723,
+  236235
+};
+static uint32_t s_MiddenStip[] =
+{
+  2200328713,
+  12546235,
+  2356326,
+  23623723,
+  236235
+};
 
 void setup()
 {
-  Serial.begin(9600);
-  while (!Serial)
-  {
+  // initialize serial for debugging
+  Serial.begin(115200);
+  // initialize serial for ESP module
+  Serial1.begin(115200);
+  // initialize ESP module
+  WiFi.init(&Serial1);
 
+  SPI.begin();
+
+#if 1
+  // check for the presence of the shield
+  if (WiFi.status() == WL_NO_SHIELD)
+  {
+    Serial.println("WiFi shield not present");
+    // don't continue
+    while (true);
   }
 
-  // Ensure we can output on the horn digital pin
-  pinMode(HORN_PIN, OUTPUT);
+  // attempt to connect to WiFi network
+  while (status != WL_CONNECTED)
+  {
+    Serial.print("Attempting to connect to WPA SSID: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network
+    status = WiFi.begin(ssid, pass);
+  }
+#endif
 
-  // Attach the Servo drivers to the servo output pins
-  servo.attach(SERVO_0_PIN);
+  Serial.println("You're connected to the network");
+  Serial.println("Hello World!");
+  printWifiStatus();
 
-  // Tell the receiver where to send the 5 channels
-  rcrx.setOutputs((Setter**)&outputs, NUM_OUTPUTS);
-
-  // Join the transceiver and the RCRx receiver object together
-  rcrx.setTransceiver(&transceiver);
-
-  // Initialise the receiver and transceiver
-  rcrx.init();
+#if 1
+  if (client.connect(server, 80))
+  {
+    Serial.println("connected");
+  }
+  else
+  {
+    Serial.println("connection failed");
+  }
+#endif
 }
+
+bool CodeInList(uint32_t* codes, uint16_t aantal_codes, uint32_t code)
+{
+  for (uint16_t i = 0; i < aantal_codes; i++)
+  {
+    if (code == codes[i])
+    {
+      // Dit is een van de codes die we zochten
+      return true;
+    }
+  }
+
+  // Geen matchende code gevonden
+  return false;
+}
+
+
+void post(bool links, bool midden, bool rechts)
+{
+  String detectGoalLinks;
+  String detectMiddenStip;
+  String detectGoalRechts;
+
+  //en doe er iets mee
+  if (links == true)
+  {
+    detectGoalLinks = "1";
+  }
+  else
+  {
+    detectGoalLinks = "0";
+  }
+  if (midden == true)
+  {
+    detectMiddenStip = "1";
+  }
+  else
+  {
+    detectMiddenStip = "0";
+  }
+  if (rechts == true)
+  {
+    detectGoalRechts = "1";
+  }
+  else
+  {
+    detectGoalRechts = "0";
+  }
+
+  Serial.println("connecting...");
+  // client.println("POST /rlrl/radio_Data.php HTTP/1.1");
+
+#if 0
+  // bouw de post string
+  String PostData = "L=";
+  PostData = PostData + detectGoalLinks;
+  PostData = PostData + "&M=";
+  PostData = PostData + detectMiddenStip;
+  PostData = PostData + "&R=";
+  PostData = PostData + detectGoalRechts;
+  Serial.println(PostData);
+
+  client.println("POST /rlrl/radio_Data.php HTTP/1.1");
+  client.println("Host: 192.168.178.17");
+  client.println("User-Agent: Arduino/1.0");
+  client.println("Connection: Keep-Alive");
+  client.println("Content-Type: application/x-www-form-urlencoded;");
+  client.println("Content-Length: " + String(PostData.length()));
+  client.println();
+  client.println(PostData);
+#endif
+
+  //  client.print("Content-Length: ");
+  // client.println(PostData.length());
+  //client.flush();
+  // client.stop();
+
+
+
+}
+
+#if 0
+void checkRFID(uint16_t i)
+{
+  // Zet scanner aan
+  rfid.begin(2, 4, 5, i + 7, 3, 6); // 7, 8, 9, 10
+  rfid.init();
+
+  uchar status;
+  uchar str[MAX_LEN];
+  // Doe een scan
+  // Als een van de sensoren niet goed is aangesloten, krijgen we een timeout, dus doe een tijdmeting
+  unsigned long begin = millis();
+  status = rfid.request(PICC_REQIDL, str);
+  if (millis() - begin > 100)
+  {
+    Serial.print("Sensor ");
+    Serial.print(i);
+    Serial.println(" is niet goed aangesloten.");
+  }
+  if (status == MI_OK) // Scan was goed
+  {
+    // Krijg de ID
+    status = rfid.anticoll(str);
+    if (status == MI_OK) // ID goed
+    {
+      uint32_t code;
+      memcpy(&code, str, 4); // Kopieer naar iets dat we kunnen vergelijken
+
+      if (CodeInList(s_DoelLinks, COUNT_OF(s_DoelLinks), code))
+      {
+        Serial.println("Bal zit in doel links");
+      }
+      else if (CodeInList(s_MiddenStip, COUNT_OF(s_MiddenStip), code))
+      {
+        Serial.println("Bal zit in doel middenstip");
+      }
+      else if (CodeInList(s_DoelRechts, COUNT_OF(s_DoelRechts), code))
+      {
+        Serial.println("Bal zit op Rechts");
+      }
+
+
+      unsigned long timerNow = millis();
+      if ((unsigned long)(timerNow - timerBefore) >= timer)
+      {
+        //post(goalLinks, middenStip, goalRechts);
+        timerBefore = millis();
+
+      }
+
+
+      // Even printen zodat we codes kunnen verzamelen
+      Serial.print(i);
+      Serial.print(" detects ");
+      Serial.println(code);
+    }
+
+    // Zet scanner uit
+    rfid.halt();
+
+    // Effe wachten tussen de scans door
+    //delay(100);
+  }
+}
+#endif
+
 
 void loop()
 {
-  // And do it
-  rcrx.run();
+  for (uint16_t i = 0; i < NUM_RFID; i++)
+  {
+    // Deze iteraties duren ongeveer ~25 ms elk, soms met spikes van 62-63 ms.
+    //checkRFID(i);
+  }
+}
+
+
+void printWifiStatus()
+{
+  // print the SSID of the network you're attached to
+  //Serial.print("SSID: ");
+  //Serial.println(WiFi.SSID());
+
+  // print your WiFi shield's IP address
+#if 1
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+#endif
+
+  // print the received signal strength
+  //long rssi = WiFi.RSSI();
+  //Serial.print("Signal strength (RSSI):");
+  //Serial.print(rssi);
+  //Serial.println(" dBm");
 }
