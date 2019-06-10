@@ -43,7 +43,7 @@ private RLController[] devices = new RLController[NUM_CARS];
 private boolean started = false;
 
 // Ethernet configuratie van de auto (destination)
-String[] ips = {"192.168.1.102", "192.168.1.103", "192.168.1.104", "192.168.1.105"};
+String[] ips = {"192.168.178.102", "192.168.178.103", "192.168.178.104", "192.168.178.105"};
 int port = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
 String message = new String("Hello");
@@ -172,31 +172,26 @@ public void draw()
       RLController controller = devices[i];
       if (controller != null)
       {
-        byte horizontal = 0;
-        byte forward = 0;
-        byte backward = 0;
-        byte boost = 0;
-        
+        byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, -127.0f, 127.0f);
+        byte forwardBackward = 0;
+        byte boost = (byte)controller.device.getButton("Boost").getValue();
+
         switch (controller.deviceType)
         {
         case PS4: // PS4 controller
-          controller.device.getSlider
-          
-          
-          
-          
-          
+          float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 127.0f);
+          float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, -127.0f, 0.0f);
+          forwardBackward = (byte)(forward + backward);
           break;
         case Xbox360:
-          //
+          // TODO nigga
           break;
         default:
           println("Marco doe nou eens niet zo stom, missing case bij controller switch in draw()");
           break;
         }
-        
-        
-        udpTX.send(message, ips[i], port);
+
+        udpTX.send(new byte[] {horizontal, forwardBackward, boost}, ips[i], port);
       }
     }
 

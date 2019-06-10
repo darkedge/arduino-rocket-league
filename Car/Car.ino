@@ -1,331 +1,156 @@
-/*
- WiFiEsp example: WebClientRepeating
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
 
- This sketch connects to a web server and makes an HTTP request
- using an Arduino ESP8266 module.
- It repeats the HTTP call each 10 seconds.
+const char* ssid = "Ziggo25706";
+const char* password = "tE7fVVp}7cLL";
 
- For more details see: http://yaab-arduino.blogspot.com/p/wifiesp.html
-*/
+// Processing IP lijst
+//String[] ips = {"192.168.178.102", "192.168.178.103", "192.168.178.104", "192.168.178.105"};
+IPAddress ip(192, 168, 178, 102);
+IPAddress gateway(192, 168, 178, 1);
+IPAddress subnet(255, 255, 255, 0);
 
-/**
- * void rfid.begin(
- *    csnPin = 2,
- *    sckPin = 4,
- *    mosiPin = 5,
- *    misoPin = i + 7,
- *    chipSelectPin = 3,
- *    NRSTPD = 6
- * );
- *
- * RFID-522
- *   RX SDA SS 8 - Connect to 3 (chipSelectPin)
- *         SCK 7 - Connect to 4 (sckPin)
- *        MOSI 6 - Connect to 5 (mosiPin)
- * TX SCL MISO 5 - Connect to i+7 (misoPin)
- *         IRQ 4 - <disconnected>
- *         GND 3 - Connect to ground
- *         RST 2 - Connect to 6 (NRSTPD - Not Reset and Power-down)
- *         VCC 1 - Connect to 3.3V
- *
- * VCC supplies power for the module. This can be anywhere from 2.5 to 3.3 volts. You can connect it
- * to 3.3V output from your Arduino. Remember connecting it to 5V pin will likely destroy your module!
- *
- * RST is an input for Reset and power-down. When this pin goes low, hard power-down is enabled.
- * This turns off all internal current sinks including the oscillator and the input pins are
- * disconnected from the outside world. On the rising edge, the module is reset.
- *
- * GND is the Ground Pin and needs to be connected to GND pin on the Arduino.
- *
- * IRQ is an interrupt pin that can alert the microcontroller when RFID tag comes into its vicinity.
- *
- * MISO / SCL / Tx pin acts as Master-In-Slave-Out when SPI interface is enabled, acts as serial
- * clock when I2C interface is enabled and acts as serial data output when UART interface is enabled.
- *
- * MOSI (Master Out Slave In) is SPI input to the RC522 module.
- *
- * SCK (Serial Clock) accepts clock pulses provided by the SPI bus Master i.e. Arduino.
- *
- * SS / SDA / Rx pin acts as Signal input when SPI interface is enabled, acts as serial data when
- * I2C interface is enabled and acts as serial data input when UART interface is enabled. This pin
- * is usually marked by encasing the pin in a square so it can be used as a reference for
- * identifying the other pins.
- */
+int ledPin = 13; // GPIO13
+WiFiServer server(80);
+unsigned int localPort = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
-#include <WiFiEsp.h>
-#include <SPI.h>
+// buffers for receiving and sending data
+#define UDP_TX_PACKET_MAX_SIZE 24
+char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming packet,
+char ReplyBuffer[] = "acknowledged";        // a string to send back
 
-#if 0
-// Emulate Serial1 on pins 6/7 if not present
-#ifndef HAVE_HWSERIAL1
-  #include "SoftwareSerial.h"
-  SoftwareSerial Serial1(2, 13); // RX, TX
-#endif
-#endif
-
-#if 1
-  char ssid[] = "Ziggo25706";   // SSID
-  char pass[] = "tE7fVVp}7cLL"; // Password
-  uint16_t status = WL_IDLE_STATUS;     // the Wifi radio's status
-
-  char server[] = "192.168.178.17";
-#endif
-
-unsigned long timerBefore = 0;
-const uint16_t timer = 1000; //1 second
-
-static constexpr auto NUM_RFID = 9;
-
-// Initialize the Ethernet client object
-WiFiEspClient client;
-
-#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
-
-static uint32_t s_DoelLinks[] =
-{
-  123123123,
-  12546235,
-  2356326,
-  23623723,
-  236235
-};
-static uint32_t s_DoelRechts[] =
-{
-  643145847,
-  123123123,
-  12546235,
-  2356326,
-  23623723,
-  236235
-};
-static uint32_t s_MiddenStip[] =
-{
-  2200328713,
-  12546235,
-  2356326,
-  23623723,
-  236235
-};
+// An EthernetUDP instance to let us send and receive packets over UDP
+WiFiUDP Udp;
 
 void setup()
 {
-  // initialize serial for debugging
   Serial.begin(115200);
-  // initialize serial for ESP module
-  Serial1.begin(115200);
-  // initialize ESP module
-  WiFi.init(&Serial1);
+  delay(10);
 
-  SPI.begin();
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
 
-#if 1
-  // check for the presence of the shield
-  if (WiFi.status() == WL_NO_SHIELD)
+  // Connect to WiFi network
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.config(ip, gateway, subnet);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED)
   {
-    Serial.println("WiFi shield not present");
-    // don't continue
-    while (true);
+    delay(500);
+    Serial.print(".");
   }
+  Serial.println("");
+  Serial.println("WiFi connected");
 
-  // attempt to connect to WiFi network
-  while (status != WL_CONNECTED)
-  {
-    Serial.print("Attempting to connect to WPA SSID: ");
-    Serial.println(ssid);
-    // Connect to WPA/WPA2 network
-    status = WiFi.begin(ssid, pass);
-  }
-#endif
+  // Start the server
+  server.begin();
+  Serial.println("Server started");
 
-  Serial.println("You're connected to the network");
-  Serial.println("Hello World!");
-  printWifiStatus();
+  // Print the IP address
+  Serial.print("Use this URL to connect: ");
+  Serial.print("http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("/");
 
-#if 1
-  if (client.connect(server, 80))
-  {
-    Serial.println("connected");
-  }
-  else
-  {
-    Serial.println("connection failed");
-  }
-#endif
+  
+  // start UDP
+  Udp.begin(localPort);
 }
-
-bool CodeInList(uint32_t* codes, uint16_t aantal_codes, uint32_t code)
-{
-  for (uint16_t i = 0; i < aantal_codes; i++)
-  {
-    if (code == codes[i])
-    {
-      // Dit is een van de codes die we zochten
-      return true;
-    }
-  }
-
-  // Geen matchende code gevonden
-  return false;
-}
-
-
-void post(bool links, bool midden, bool rechts)
-{
-  String detectGoalLinks;
-  String detectMiddenStip;
-  String detectGoalRechts;
-
-  //en doe er iets mee
-  if (links == true)
-  {
-    detectGoalLinks = "1";
-  }
-  else
-  {
-    detectGoalLinks = "0";
-  }
-  if (midden == true)
-  {
-    detectMiddenStip = "1";
-  }
-  else
-  {
-    detectMiddenStip = "0";
-  }
-  if (rechts == true)
-  {
-    detectGoalRechts = "1";
-  }
-  else
-  {
-    detectGoalRechts = "0";
-  }
-
-  Serial.println("connecting...");
-  // client.println("POST /rlrl/radio_Data.php HTTP/1.1");
-
-#if 0
-  // bouw de post string
-  String PostData = "L=";
-  PostData = PostData + detectGoalLinks;
-  PostData = PostData + "&M=";
-  PostData = PostData + detectMiddenStip;
-  PostData = PostData + "&R=";
-  PostData = PostData + detectGoalRechts;
-  Serial.println(PostData);
-
-  client.println("POST /rlrl/radio_Data.php HTTP/1.1");
-  client.println("Host: 192.168.178.17");
-  client.println("User-Agent: Arduino/1.0");
-  client.println("Connection: Keep-Alive");
-  client.println("Content-Type: application/x-www-form-urlencoded;");
-  client.println("Content-Length: " + String(PostData.length()));
-  client.println();
-  client.println(PostData);
-#endif
-
-  //  client.print("Content-Length: ");
-  // client.println(PostData.length());
-  //client.flush();
-  // client.stop();
-
-
-
-}
-
-#if 0
-void checkRFID(uint16_t i)
-{
-  // Zet scanner aan
-  rfid.begin(2, 4, 5, i + 7, 3, 6); // 7, 8, 9, 10
-  rfid.init();
-
-  uchar status;
-  uchar str[MAX_LEN];
-  // Doe een scan
-  // Als een van de sensoren niet goed is aangesloten, krijgen we een timeout, dus doe een tijdmeting
-  unsigned long begin = millis();
-  status = rfid.request(PICC_REQIDL, str);
-  if (millis() - begin > 100)
-  {
-    Serial.print("Sensor ");
-    Serial.print(i);
-    Serial.println(" is niet goed aangesloten.");
-  }
-  if (status == MI_OK) // Scan was goed
-  {
-    // Krijg de ID
-    status = rfid.anticoll(str);
-    if (status == MI_OK) // ID goed
-    {
-      uint32_t code;
-      memcpy(&code, str, 4); // Kopieer naar iets dat we kunnen vergelijken
-
-      if (CodeInList(s_DoelLinks, COUNT_OF(s_DoelLinks), code))
-      {
-        Serial.println("Bal zit in doel links");
-      }
-      else if (CodeInList(s_MiddenStip, COUNT_OF(s_MiddenStip), code))
-      {
-        Serial.println("Bal zit in doel middenstip");
-      }
-      else if (CodeInList(s_DoelRechts, COUNT_OF(s_DoelRechts), code))
-      {
-        Serial.println("Bal zit op Rechts");
-      }
-
-
-      unsigned long timerNow = millis();
-      if ((unsigned long)(timerNow - timerBefore) >= timer)
-      {
-        //post(goalLinks, middenStip, goalRechts);
-        timerBefore = millis();
-
-      }
-
-
-      // Even printen zodat we codes kunnen verzamelen
-      Serial.print(i);
-      Serial.print(" detects ");
-      Serial.println(code);
-    }
-
-    // Zet scanner uit
-    rfid.halt();
-
-    // Effe wachten tussen de scans door
-    //delay(100);
-  }
-}
-#endif
-
 
 void loop()
 {
-  for (uint16_t i = 0; i < NUM_RFID; i++)
+#if 0
+  // Check if a client has connected
+  WiFiClient client = server.available();
+  if (!client)
   {
-    // Deze iteraties duren ongeveer ~25 ms elk, soms met spikes van 62-63 ms.
-    //checkRFID(i);
+    return;
   }
-}
 
+  // Wait until the client sends some data
+  Serial.println("new client");
+  while (!client.available())
+  {
+    delay(1);
+  }
 
-void printWifiStatus()
-{
-  // print the SSID of the network you're attached to
-  //Serial.print("SSID: ");
-  //Serial.println(WiFi.SSID());
+  // Read the first line of the request
+  String request = client.readStringUntil('\r');
+  Serial.println(request);
+  client.flush();
 
-  // print your WiFi shield's IP address
-#if 1
-  IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
+  // Match the request
+
+  int value = LOW;
+  if (request.indexOf("/LED=ON") != -1)
+  {
+    digitalWrite(ledPin, HIGH);
+    value = HIGH;
+  }
+  if (request.indexOf("/LED=OFF") != -1)
+  {
+    digitalWrite(ledPin, LOW);
+    value = LOW;
+  }
+
+  // Set ledPin according to the request
+  //digitalWrite(ledPin, value);
+
+  // Return the response
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/html");
+  client.println(""); //  do not forget this one
+  client.println("<!DOCTYPE HTML>");
+  client.println("<html>");
+
+  client.print("Led pin is now: ");
+
+  if (value == HIGH)
+  {
+    client.print("On");
+  }
+  else
+  {
+    client.print("Off");
+  }
+  client.println("<br><br>");
+  client.println("<a href=\"/LED=ON\"\"><button>Turn On </button></a>");
+  client.println("<a href=\"/LED=OFF\"\"><button>Turn Off </button></a><br />");
+  client.println("</html>");
+
+  delay(1);
+  Serial.println("Client disonnected");
+  Serial.println("");
 #endif
+  // if there's data available, read a packet
+  int packetSize = Udp.parsePacket();
+  if (packetSize) {
+    Serial.print("Received packet of size ");
+    Serial.println(packetSize);
+    Serial.print("From ");
+    IPAddress remote = Udp.remoteIP();
+    for (int i=0; i < 4; i++) {
+      Serial.print(remote[i], DEC);
+      if (i < 3) {
+        Serial.print(".");
+      }
+    }
+    Serial.print(", port ");
+    Serial.println(Udp.remotePort());
 
-  // print the received signal strength
-  //long rssi = WiFi.RSSI();
-  //Serial.print("Signal strength (RSSI):");
-  //Serial.print(rssi);
-  //Serial.println(" dBm");
+    // read the packet into packetBufffer
+    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+    Serial.println("Contents:");
+    Serial.println(packetBuffer);
+
+    // send a reply to the IP address and port that sent us the packet we received
+    //Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+    //Udp.write(ReplyBuffer);
+    //Udp.endPacket();
+  }
 }
