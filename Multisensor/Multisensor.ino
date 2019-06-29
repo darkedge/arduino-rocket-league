@@ -75,18 +75,10 @@ void checkRFID(uint16_t i)
   }
   if (status == MI_OK) // Scan was goed
   {
-    // Krijg de ID
-    status = rfid.anticoll(str);
-    if (status == MI_OK) // ID goed
-    {
-      uint32_t code;
-      memcpy(&code, str, 4); // Kopieer naar iets dat we kunnen vergelijken
+    Serial.print(i);
+    Serial.print(" goal1!");
 
-      // Even printen zodat we codes kunnen verzamelen
-      Serial.print(i);
-      Serial.print(" detects ");
-      Serial.println(code);
-    }
+    // TODO: ID ophalen, maar dit lukt vaak niet.
 
     // Zet scanner uit
     rfid.halt();
