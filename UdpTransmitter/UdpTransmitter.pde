@@ -205,10 +205,10 @@ public void draw()
                         .put(horizontal)
                         .putShort(forwardBackward)
                         .put(boost);
-        
+
         byte[] newCommand = bb.array();
-        
-        
+
+
         if (lastCommand == null || !Arrays.equals(newCommand, lastCommand))
         {
           udpTX.send(newCommand, ips[i], port);
