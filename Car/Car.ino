@@ -15,11 +15,15 @@ IPAddress ip(192, 168, 178, 102);
 IPAddress gateway(192, 168, 178, 1);
 IPAddress subnet(255, 255, 255, 0);
 
-const int SERVO_PIN = 12; // Pin 12 == GPIO 6
+const int SERVO_PIN    = D6;
+const int RIGHT_BLOCK  = D5; // Note: metalen plaatje zit links
+const int LEFT_BLOCK   = D4; // Note: metalen plaatje zit rechts
+const int BLOCK_SIGNAL = D2;
+
 
 // https://hackaday.io/project/8856-incubator-controller/log/29291-node-mcu-motor-shield
-const int DIRA = 0;
-const int PWMA = 5;
+const int PWMA = D1;
+const int DIRA = D3;
 WiFiServer server(80);
 unsigned int localPort = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
@@ -46,6 +50,11 @@ void setup()
 
   pinMode(DIRA, OUTPUT);
   pinMode(PWMA, OUTPUT);
+  pinMode(BLOCK_SIGNAL, OUTPUT);
+  pinMode(LEFT_BLOCK, INPUT);
+  pinMode(RIGHT_BLOCK, INPUT);
+
+  digitalWrite(BLOCK_SIGNAL, HIGH);
 
   // Connect to WiFi network
   Serial.println();
@@ -91,8 +100,15 @@ void loop()
     // Steering left/right
     if (packet.horizontal != last.horizontal)
     {
+      Serial.print(digitalRead(LEFT_BLOCK));
+      Serial.print(" ");
+      Serial.println(digitalRead(RIGHT_BLOCK));
       // set the servo position
-      myServo.write(packet.horizontal);
+      if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
+          ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
+      {
+        myServo.write(packet.horizontal);
+      }
       last.horizontal = packet.horizontal;
     }
 
