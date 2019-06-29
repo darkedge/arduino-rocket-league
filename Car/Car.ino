@@ -1,3 +1,5 @@
+// Auto wordt aangestuurd via Wifi.
+// Stuur servo zit op 6 van het NodeMCU bordje  (oranje kabel binnen)
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <Servo.h>
@@ -9,15 +11,15 @@ const char* password = "tE7fVVp}7cLL";
 
 // Processing IP lijst
 //String[] ips = {"192.168.178.102", "192.168.178.103", "192.168.178.104", "192.168.178.105"};
-IPAddress ip(192, 168, 178, 103);
+IPAddress ip(192, 168, 178, 102);
 IPAddress gateway(192, 168, 178, 1);
 IPAddress subnet(255, 255, 255, 0);
 
-const int SERVO_PIN = 12;
-const int MOTOR_PWM = 5;
-const int MOTOR_D1 = 0;
-const int MOTOR_D2 = 1;
-//int ledPin = 12;
+const int SERVO_PIN = 12; // Pin 12 == GPIO 6
+
+// https://hackaday.io/project/8856-incubator-controller/log/29291-node-mcu-motor-shield
+const int DIRA = 0;
+const int PWMA = 5;
 WiFiServer server(80);
 unsigned int localPort = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
@@ -38,12 +40,12 @@ WiFiUDP Udp;
 
 void setup()
 {
-  myServo.attach(SERVO_PIN); // attaches the servo on pin 9 to the servo object
+  myServo.attach(SERVO_PIN);
   Serial.begin(115200);
   delay(10);
 
-  //pinMode(ledPin, OUTPUT);
-  //digitalWrite(ledPin, LOW);
+  pinMode(DIRA, OUTPUT);
+  pinMode(PWMA, OUTPUT);
 
   // Connect to WiFi network
   Serial.println();
@@ -62,35 +64,13 @@ void setup()
   Serial.println("");
   Serial.println("WiFi connected");
 
-  // Start the server
-  server.begin();
-  Serial.println("Server started");
-
-  // Print the IP address
-  Serial.print("Use this URL to connect: ");
-  Serial.print("http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("/");
-
-  // Motor
-  digitalWrite(0, HIGH);
-  digitalWrite(2, HIGH);
-  digitalWrite(4, HIGH);
-  digitalWrite(6, HIGH);
-  digitalWrite(8, HIGH);
-  digitalWrite(10, HIGH);
-  digitalWrite(12, HIGH);
-  digitalWrite(14, HIGH);
-
   // start UDP
   Udp.begin(localPort);
 
   Serial.println(sizeof(RLPacket));
 }
 
-static uint8_t lastHorizontal;
-static int8_t lastForwardBackward;
-//static int8_t lastBoost;
+static RLPacket last;
 
 void loop()
 {
@@ -108,18 +88,43 @@ void loop()
     Serial.print(" ");
     Serial.println(packet.boost);
 
-    if (packet.horizontal != lastHorizontal)
+    // Steering left/right
+    if (packet.horizontal != last.horizontal)
     {
       // set the servo position
       myServo.write(packet.horizontal);
-      lastHorizontal = packet.horizontal;
+      last.horizontal = packet.horizontal;
     }
 
-    if (packet.forwardBackward != lastForwardBackward)
+    // Forward/backward
+    if (packet.forwardBackward != last.forwardBackward)
     {
-      // TODO: this is backwards
-      analogWrite(MOTOR_PWM, packet.forwardBackward);
-      lastForwardBackward = packet.forwardBackward;
+      if (packet.forwardBackward < 0)
+      {
+        digitalWrite(DIRA, HIGH);
+        analogWrite(PWMA, -packet.forwardBackward);
+      }
+      else
+      {
+        digitalWrite(DIRA, LOW);
+        analogWrite(PWMA, packet.forwardBackward);
+      }
+      last.forwardBackward = packet.forwardBackward;
+    }
+
+    if (last.forwardBackward == 0)
+    {
+      analogWrite(PWMA, packet.forwardBackward);
+    }
+
+    // Reset neutral on boost
+    if (packet.boost != last.boost)
+    {
+      if (packet.boost)
+      {
+        myServo.writeMicroseconds(1500); // Reset to neutral
+      }
+      last.boost = packet.boost;
     }
   }
 }

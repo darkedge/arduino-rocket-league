@@ -1,3 +1,5 @@
+// Control schemes moeten de naam "ps4" of "xbox360" hebben.
+
 import hypermedia.net.*;
 
 import org.gamecontrolplus.gui.*;
@@ -23,6 +25,7 @@ import org.gamecontrolplus.Configuration;
 import org.gamecontrolplus.ControlDevice;
 import org.gamecontrolplus.ControlIO;
 import java.nio.*;
+import java.util.Arrays;
 
 
 GLabel lblPath, lblSketch;
@@ -50,6 +53,8 @@ int port = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 String message = new String("Hello");
 UDP udpTX;
 
+byte[] lastCommand;
+
 
 List<TSelectEntry> deviceEntries =  new ArrayList<TSelectEntry>();
 
@@ -65,7 +70,6 @@ void setup()
 {
   ControlIO control = ControlIO.getInstance(this);
   udpTX = new UDP(this);
-  //udpTX.log(true);
 
   G4P.messagesEnabled(false);
   G4P.setGlobalColorScheme(GCScheme.GREEN_SCHEME);
@@ -173,17 +177,18 @@ public void draw()
       RLController controller = devices[i];
       if (controller != null)
       {
-        byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, 179.0f, 0.0f);
+        byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, 0.0f, 179.0f);
         short forwardBackward = 0;
         byte boost = controller.device.getButton("Boost").pressed() ? (byte)1 : (byte)0;
 
         switch (controller.deviceType)
         {
         case PS4: // PS4 controller
-          float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 1024.0f);
-          //float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -127.0f);
-          //forwardBackward = (byte)(forward + backward);
-          forwardBackward = (short)forward;
+          float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 1.0f);
+          float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -1.0f);
+
+          //forwardBackward = (short)forward;
+          forwardBackward = (short)((forward + backward) * 1024.0f);
           break;
         case Xbox360: // Xbox 360 controller
           // TODO nigga
@@ -200,22 +205,17 @@ public void draw()
                         .put(horizontal)
                         .putShort(forwardBackward)
                         .put(boost);
-        udpTX.send(bb.array(), ips[i], port);
+        
+        byte[] newCommand = bb.array();
+        
+        
+        if (lastCommand == null || !Arrays.equals(newCommand, lastCommand))
+        {
+          udpTX.send(newCommand, ips[i], port);
+          lastCommand = Arrays.copyOf(newCommand, newCommand.length);
+        }
       }
     }
-
-
-
-    //background(255, 200, 255);
-
-    //gpad.getButton("PUPILSIZE1").pressed();
-    //gpad.getButton("PUPILSIZE2").pressed();
-    //gpad.getSlider("XPOS").getValue();
-    //gpad.getSlider("YPOS").getValue();
-    //gpad.getSlider("EYELID").getValue();
-
-    //delay(1000);
-    //loop();
   }
 
 
