@@ -140,7 +140,7 @@ private void addControllers()
         }
         else
         {
-          println("Marco fucking idioot je hebt geen case toegevoegd voor deze control scheme");
+          println("geen case toegevoegd voor deze control scheme");
         }
         println(string + " controller gevonden: " + gpad.getName());
         if (numControllers == NUM_CARS)
@@ -188,17 +188,16 @@ public void draw()
           float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -1.0f);
 
           //forwardBackward = (short)forward;
-          forwardBackward = (short)((forward + backward) * 1024.0f);
+          forwardBackward = (short)((forward + backward) * 1023.0f);
           break;
         case Xbox360: // Xbox 360 controller
-          // TODO nigga
+          // TODO
           break;
         default:
-          println("Marco doe nou eens niet zo stom, missing case bij controller switch in draw()");
+          println("missing case bij controller switch in draw()");
           break;
         }
 
-        //println(horizontal + " " + forwardBackward + " " + boost);
         ByteBuffer bb = ByteBuffer
                         .allocate(4)
                         .order(ByteOrder.LITTLE_ENDIAN)
@@ -211,6 +210,7 @@ public void draw()
 
         if (lastCommand == null || !Arrays.equals(newCommand, lastCommand))
         {
+          println(horizontal + " " + forwardBackward + " " + boost);
           udpTX.send(newCommand, ips[i], port);
           lastCommand = Arrays.copyOf(newCommand, newCommand.length);
         }

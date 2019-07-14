@@ -18,12 +18,17 @@ IPAddress subnet(255, 255, 255, 0);
 const int SERVO_PIN    = D6;
 const int RIGHT_BLOCK  = D5; // Note: metalen plaatje zit links
 const int LEFT_BLOCK   = D4; // Note: metalen plaatje zit rechts
-const int BLOCK_SIGNAL = D2;
+const int BLOCK_SIGNAL = D2; // Sluit deze aan op de veer van het stuur
+
+// D2->Veer->Plaatje links ->|->D5
+//         ->Plaatje rechts->|->D4
+//                           |->10 kOhm weerstand->Ground
 
 
 // https://hackaday.io/project/8856-incubator-controller/log/29291-node-mcu-motor-shield
-const int PWMA = D1;
-const int DIRA = D3;
+const int PWMA = D3;
+const int DIRA = D1;
+const int DIRB = D7;
 WiFiServer server(80);
 unsigned int localPort = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
@@ -49,6 +54,7 @@ void setup()
   delay(10);
 
   pinMode(DIRA, OUTPUT);
+  pinMode(DIRB, OUTPUT);
   pinMode(PWMA, OUTPUT);
   pinMode(BLOCK_SIGNAL, OUTPUT);
   pinMode(LEFT_BLOCK, INPUT);
@@ -118,11 +124,13 @@ void loop()
       if (packet.forwardBackward < 0)
       {
         digitalWrite(DIRA, HIGH);
+        digitalWrite(DIRB, LOW);
         analogWrite(PWMA, -packet.forwardBackward);
       }
       else
       {
         digitalWrite(DIRA, LOW);
+        digitalWrite(DIRB, HIGH);
         analogWrite(PWMA, packet.forwardBackward);
       }
       last.forwardBackward = packet.forwardBackward;
@@ -130,6 +138,8 @@ void loop()
 
     if (last.forwardBackward == 0)
     {
+        digitalWrite(DIRA, LOW);
+        digitalWrite(DIRB, LOW);
       analogWrite(PWMA, packet.forwardBackward);
     }
 
