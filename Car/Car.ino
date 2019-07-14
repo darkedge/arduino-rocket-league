@@ -4,7 +4,7 @@
 #include <WiFiUdp.h>
 #include <Servo.h>
 #include <EEPROM.h>
-
+#if 0
 Servo myServo;  // create a servo object
 
 const char* ssid = "Ziggo25706";
@@ -120,11 +120,10 @@ void ReadSerial()
 
 void setup()
 {
-  myServo.attach(SERVO_PIN);
   Serial.begin(115200);
+  myServo.attach(SERVO_PIN);
   EEPROM.begin(512);
   delay(10);
-
   ReadEeprom();
 
   pinMode(DIRA, OUTPUT);
@@ -135,7 +134,7 @@ void setup()
   pinMode(RIGHT_BLOCK, INPUT);
 
   digitalWrite(BLOCK_SIGNAL, HIGH);
-  
+
   pinMode(D0, OUTPUT);
   digitalWrite(D0, HIGH);
 }
@@ -172,19 +171,19 @@ void loop()
     // Connect to WiFi network
     Serial.print("Connecting to ");
     Serial.println(s_EepromData.wifiSsid);
-    
-    IPAddress ip((s_EepromData.ipAddress & 0xff000000) >> 24 
-                ,(s_EepromData.ipAddress & 0x00ff0000) >> 16
-                ,(s_EepromData.ipAddress & 0x0000ff00) >> 8
-                ,(s_EepromData.ipAddress & 0x000000ff));
-IPAddress gateway((s_EepromData.gateway & 0xff000000) >> 24 
-                ,(s_EepromData.gateway & 0x00ff0000) >> 16
-                ,(s_EepromData.gateway & 0x0000ff00) >> 8
-                ,(s_EepromData.gateway & 0x000000ff));
-IPAddress subnet((s_EepromData.subnetMask & 0xff000000) >> 24 
-                ,(s_EepromData.subnetMask & 0x00ff0000) >> 16
-                ,(s_EepromData.subnetMask & 0x0000ff00) >> 8
-                ,(s_EepromData.subnetMask & 0x000000ff));
+
+    IPAddress ip((s_EepromData.ipAddress & 0xff000000) >> 24
+                 , (s_EepromData.ipAddress & 0x00ff0000) >> 16
+                 , (s_EepromData.ipAddress & 0x0000ff00) >> 8
+                 , (s_EepromData.ipAddress & 0x000000ff));
+    IPAddress gateway((s_EepromData.gateway & 0xff000000) >> 24
+                      , (s_EepromData.gateway & 0x00ff0000) >> 16
+                      , (s_EepromData.gateway & 0x0000ff00) >> 8
+                      , (s_EepromData.gateway & 0x000000ff));
+    IPAddress subnet((s_EepromData.subnetMask & 0xff000000) >> 24
+                     , (s_EepromData.subnetMask & 0x00ff0000) >> 16
+                     , (s_EepromData.subnetMask & 0x0000ff00) >> 8
+                     , (s_EepromData.subnetMask & 0x000000ff));
 
     WiFi.config(ip, gateway, subnet);
     WiFi.begin(s_EepromData.wifiSsid, s_EepromData.wifiPassword);
@@ -256,5 +255,22 @@ IPAddress subnet((s_EepromData.subnetMask & 0xff000000) >> 24
         last.boost = packet.boost;
       }
     }
+  }
+}
+#endif
+
+void setup()
+{
+  Serial.begin(115200);
+
+  pinMode(D0, OUTPUT);
+  digitalWrite(D0, HIGH);
+}
+
+void loop()
+{
+  if (Serial.available() > 0)
+  {
+    digitalWrite(D0, LOW);
   }
 }
