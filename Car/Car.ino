@@ -3,6 +3,7 @@
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <Servo.h>
+#include <EEPROM.h>
 
 Servo myServo;  // create a servo object
 
@@ -11,9 +12,9 @@ const char* password = "tE7fVVp}7cLL";
 
 // Processing IP lijst
 //String[] ips = {"192.168.178.102", "192.168.178.103", "192.168.178.104", "192.168.178.105"};
-IPAddress ip(192, 168, 178, 102);
-IPAddress gateway(192, 168, 178, 1);
-IPAddress subnet(255, 255, 255, 0);
+//IPAddress ip(192, 168, 178, 102); // 192.168.178.102
+//IPAddress subnet(255, 255, 255, 0); // 255.255.255.0
+//IPAddress gateway(192, 168, 178, 1); // 192.168.178.1
 
 const int SERVO_PIN    = D6;
 const int RIGHT_BLOCK  = D5; // Note: metalen plaatje zit links
@@ -29,7 +30,6 @@ const int BLOCK_SIGNAL = D2; // Sluit deze aan op de veer van het stuur
 const int PWMA = D3;
 const int DIRA = D1;
 const int DIRB = D7;
-WiFiServer server(80);
 unsigned int localPort = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
 struct RLPacket
@@ -47,11 +47,85 @@ char ReplyBuffer[] = "acknowledged";        // a string to send back
 // An EthernetUDP instance to let us send and receive packets over UDP
 WiFiUDP Udp;
 
+static constexpr int s_EepromAddress = 0;
+
+struct EepromData
+{
+  uint32_t ipAddress;
+  uint32_t subnetMask;
+  uint32_t gateway;
+  char wifiSsid[32];
+  char wifiPassword[32];
+} __attribute__((packed));
+
+static EepromData s_EepromData;
+
+// https://github.com/esp8266/Arduino/issues/3275
+static void WriteEeprom()
+{
+  EEPROM.put(s_EepromAddress, s_EepromData);
+  EEPROM.commit();
+  Serial.println("Written EEPROM.");
+}
+
+static void PrintEepromData()
+{
+  Serial.print("IP Address: ");
+  Serial.println(s_EepromData.ipAddress);
+  Serial.print("Subnet Mask: ");
+  Serial.println(s_EepromData.subnetMask);
+  Serial.print("Gateway: ");
+  Serial.println(s_EepromData.gateway);
+  Serial.print("SSID: ");
+  Serial.println(s_EepromData.wifiSsid);
+  Serial.print("Password: ");
+  Serial.println(s_EepromData.wifiPassword);
+}
+
+// https://github.com/esp8266/Arduino/issues/3275
+static void ReadEeprom()
+{
+  s_EepromData = {};
+  EEPROM.get(s_EepromAddress, s_EepromData);
+  Serial.println("Read from EEPROM:");
+  PrintEepromData();
+}
+
+static RLPacket last;
+
+void ReadSerial()
+{
+  static byte buf[sizeof(EepromData)];
+  static int numRead;
+
+  if (Serial.available() > 0)
+  {
+    digitalWrite(D0, LOW);
+    char c = Serial.read();
+
+    buf[numRead++] = c;
+    if (numRead == sizeof(buf)) // Done reading
+    {
+      numRead = 0;
+      memcpy(&s_EepromData, buf, sizeof(buf));
+      Serial.println("Received config:");
+      PrintEepromData();
+      memset(buf, 0, sizeof(buf));
+      WriteEeprom();
+      WiFi.disconnect();
+    }
+  }
+}
+
+
 void setup()
 {
   myServo.attach(SERVO_PIN);
   Serial.begin(115200);
+  EEPROM.begin(512);
   delay(10);
+
+  ReadEeprom();
 
   pinMode(DIRA, OUTPUT);
   pinMode(DIRB, OUTPUT);
@@ -61,96 +135,126 @@ void setup()
   pinMode(RIGHT_BLOCK, INPUT);
 
   digitalWrite(BLOCK_SIGNAL, HIGH);
-
-  // Connect to WiFi network
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
-  WiFi.config(ip, gateway, subnet);
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi connected");
-
-  // start UDP
-  Udp.begin(localPort);
-
-  Serial.println(sizeof(RLPacket));
+  
+  pinMode(D0, OUTPUT);
+  digitalWrite(D0, HIGH);
 }
-
-static RLPacket last;
 
 void loop()
 {
-  // if there's data available, read a packet
-  int packetSize = Udp.parsePacket();
-  if (packetSize == sizeof(RLPacket))
+  static bool lastWifiStatus;
+  static bool connecting;
+  // Check Serial for new configuration data
+  ReadSerial();
+
+  bool WifiStatus = (WiFi.status() == WL_CONNECTED);
+  if (WifiStatus && !lastWifiStatus)
   {
-    // read the packet into packetBufffer
-    RLPacket packet;
-    Udp.read((char*)&packet, sizeof(packet));
+    Serial.println("WiFi connected");
+    connecting = false;
+    Udp.begin(localPort);
+  }
+  else if (lastWifiStatus && !WifiStatus)
+  {
+    Serial.println("WiFi disconnected");
+    WiFi.disconnect();
+    Udp.stop();
+  }
+  lastWifiStatus = WifiStatus;
 
-    Serial.print(packet.horizontal);
-    Serial.print(" ");
-    Serial.print(packet.forwardBackward);
-    Serial.print(" ");
-    Serial.println(packet.boost);
+  if (!WifiStatus && !connecting & &s_EepromData.ipAddress != 0 &&
+      s_EepromData.gateway != 0 &&
+      s_EepromData.subnetMask != 0 &&
+      strlen(s_EepromData.wifiSsid) != 0 &&
+      strlen(s_EepromData.wifiPassword) != 0)
+  {
+    connecting = true;
+    // Connect to WiFi network
+    Serial.print("Connecting to ");
+    Serial.println(s_EepromData.wifiSsid);
+    
+    IPAddress ip((s_EepromData.ipAddress & 0xff000000) >> 24 
+                ,(s_EepromData.ipAddress & 0x00ff0000) >> 16
+                ,(s_EepromData.ipAddress & 0x0000ff00) >> 8
+                ,(s_EepromData.ipAddress & 0x000000ff));
+IPAddress gateway((s_EepromData.gateway & 0xff000000) >> 24 
+                ,(s_EepromData.gateway & 0x00ff0000) >> 16
+                ,(s_EepromData.gateway & 0x0000ff00) >> 8
+                ,(s_EepromData.gateway & 0x000000ff));
+IPAddress subnet((s_EepromData.subnetMask & 0xff000000) >> 24 
+                ,(s_EepromData.subnetMask & 0x00ff0000) >> 16
+                ,(s_EepromData.subnetMask & 0x0000ff00) >> 8
+                ,(s_EepromData.subnetMask & 0x000000ff));
 
-    // Steering left/right
-    if (packet.horizontal != last.horizontal)
+    WiFi.config(ip, gateway, subnet);
+    WiFi.begin(s_EepromData.wifiSsid, s_EepromData.wifiPassword);
+  }
+
+  if (WifiStatus)
+  {
+    // if there's data available, read a packet
+    int packetSize = Udp.parsePacket();
+    if (packetSize == sizeof(RLPacket))
     {
-      Serial.print(digitalRead(LEFT_BLOCK));
+      // read the packet into packetBuffer
+      RLPacket packet;
+      Udp.read((char*)&packet, sizeof(packet));
+
+      Serial.print(packet.horizontal);
       Serial.print(" ");
-      Serial.println(digitalRead(RIGHT_BLOCK));
-      // set the servo position
-      if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
-          ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
-      {
-        myServo.write(packet.horizontal);
-      }
-      last.horizontal = packet.horizontal;
-    }
+      Serial.print(packet.forwardBackward);
+      Serial.print(" ");
+      Serial.println(packet.boost);
 
-    // Forward/backward
-    if (packet.forwardBackward != last.forwardBackward)
-    {
-      if (packet.forwardBackward < 0)
+      // Steering left/right
+      if (packet.horizontal != last.horizontal)
       {
-        digitalWrite(DIRA, HIGH);
-        digitalWrite(DIRB, LOW);
-        analogWrite(PWMA, -packet.forwardBackward);
+        Serial.print(digitalRead(LEFT_BLOCK));
+        Serial.print(" ");
+        Serial.println(digitalRead(RIGHT_BLOCK));
+        // set the servo position
+        if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
+            ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
+        {
+          myServo.write(packet.horizontal);
+        }
+        last.horizontal = packet.horizontal;
       }
-      else
+
+      // Forward/backward
+      if (packet.forwardBackward != last.forwardBackward)
+      {
+        if (packet.forwardBackward < 0)
+        {
+          digitalWrite(DIRA, HIGH);
+          digitalWrite(DIRB, LOW);
+          analogWrite(PWMA, -packet.forwardBackward);
+        }
+        else
+        {
+          digitalWrite(DIRA, LOW);
+          digitalWrite(DIRB, HIGH);
+          analogWrite(PWMA, packet.forwardBackward);
+        }
+        last.forwardBackward = packet.forwardBackward;
+      }
+
+      if (last.forwardBackward == 0)
       {
         digitalWrite(DIRA, LOW);
-        digitalWrite(DIRB, HIGH);
+        digitalWrite(DIRB, LOW);
         analogWrite(PWMA, packet.forwardBackward);
       }
-      last.forwardBackward = packet.forwardBackward;
-    }
 
-    if (last.forwardBackward == 0)
-    {
-        digitalWrite(DIRA, LOW);
-        digitalWrite(DIRB, LOW);
-      analogWrite(PWMA, packet.forwardBackward);
-    }
-
-    // Reset neutral on boost
-    if (packet.boost != last.boost)
-    {
-      if (packet.boost)
+      // Reset neutral on boost
+      if (packet.boost != last.boost)
       {
-        myServo.writeMicroseconds(1500); // Reset to neutral
+        if (packet.boost)
+        {
+          myServo.writeMicroseconds(1500); // Reset to neutral
+        }
+        last.boost = packet.boost;
       }
-      last.boost = packet.boost;
     }
   }
 }
