@@ -55,10 +55,10 @@ public void setup()
   String[] names = Serial.list();
   if (names.length == 0)
   {
-    names = new String[]{"N/A"};
+    names = new String[] {"N/A"};
   }
   dropList = new GDropList(this, 310, y, 70, 100);
-  dropList.setItems(names,0);
+  dropList.setItems(names, 0);
   handleDropListEvents(dropList, GEvent.CLICKED);
 }
 
@@ -100,7 +100,8 @@ int ParseIpStringToInt(String string)
 
 public void handleTextEvents(GEditableTextControl textcontrol, GEvent event) { /* code */ }
 
-public void handleDropListEvents(GDropList list, GEvent event) {
+public void handleDropListEvents(GDropList list, GEvent event)
+{
   if (serial != null)
   {
     serial.stop();
@@ -112,38 +113,42 @@ public void handleButtonEvents(GButton button, GEvent event)
 {
   if (event == GEvent.CLICKED)
   {
-      if (dropList.getSelectedText().equals("N/A"))
+    if (dropList.getSelectedText().equals("N/A"))
+    {
+      textArea.appendText("No serial device available.");
+    }
+    else
+    {
+      int ip = ParseIpStringToInt(fieldIpAddress.getText());
+      int subnet = ParseIpStringToInt(fieldSubnetMask.getText());
+      int gateway = ParseIpStringToInt(fieldGateway.getText());
+      byte[] ssid = fieldSsid.getText().getBytes(StandardCharsets.US_ASCII);
+      byte[] pw = fieldPassword.getText().getBytes(StandardCharsets.US_ASCII);
+      if (ssid.length <= 32 && pw.length <= 32)
       {
-        textArea.appendText("No serial device available.");
+        byte[] pad0 = new byte[32 - ssid.length];
+        byte[] pad1 = new byte[32 - pw.length];
+
+        ByteBuffer bb = ByteBuffer
+                        .allocate(76)
+                        .order(ByteOrder.LITTLE_ENDIAN)
+                        .putInt(ip)
+                        .putInt(subnet)
+                        .putInt(gateway)
+                        .put(ssid)
+                        .put(pad0)
+                        .put(pw)
+                        .put(pad1);
+
+        if (serial != null)
+        {
+          serial.write(bb.array());
+        }
       }
       else
       {
-        int ip = ParseIpStringToInt(fieldIpAddress.getText());
-        int subnet = ParseIpStringToInt(fieldSubnetMask.getText());
-        int gateway = ParseIpStringToInt(fieldGateway.getText());
-        byte[] ssid = fieldSsid.getText().getBytes(StandardCharsets.US_ASCII);
-        byte[] pw = fieldPassword.getText().getBytes(StandardCharsets.US_ASCII);
-        if (ssid.length <= 32 && pw.length <= 32)
-        {
-          byte[] pad0 = new byte[32 - ssid.length];
-          byte[] pad1 = new byte[32 - pw.length];
-
-          ByteBuffer bb = ByteBuffer
-                          .allocate(76)
-                          .order(ByteOrder.LITTLE_ENDIAN)
-                          .putInt(ip)
-                          .putInt(subnet)
-                          .putInt(gateway)
-                          .put(ssid)
-                          .put(pad0)
-                          .put(pw)
-                          .put(pad1);
-
-          if (serial != null)
-          {
-            serial.write(bb.array());
-          }
-        }
+        textArea.appendText("SSID or password too long (32 bytes max).");
       }
+    }
   }
 }
