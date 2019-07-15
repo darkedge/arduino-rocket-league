@@ -7,15 +7,6 @@
 
 Servo myServo;  // create a servo object
 
-const char* ssid = "Ziggo25706";
-const char* password = "tE7fVVp}7cLL";
-
-// Processing IP lijst
-//String[] ips = {"192.168.178.102", "192.168.178.103", "192.168.178.104", "192.168.178.105"};
-//IPAddress ip(192, 168, 178, 102); // 192.168.178.102
-//IPAddress subnet(255, 255, 255, 0); // 255.255.255.0
-//IPAddress gateway(192, 168, 178, 1); // 192.168.178.1
-
 const int SERVO_PIN    = D6;
 const int RIGHT_BLOCK  = D5; // Note: metalen plaatje zit links
 const int LEFT_BLOCK   = D4; // Note: metalen plaatje zit rechts
@@ -105,7 +96,12 @@ static void ReadEeprom()
 }
 
 static RLPacket last;
+static bool s_Connecting;
 
+
+/**
+ * Check the serial communication for new configuration data
+ */
 void ReadSerial()
 {
   static byte buf[sizeof(EepromData)];
@@ -124,6 +120,7 @@ void ReadSerial()
       PrintEepromData();
       memset(buf, 0, sizeof(buf));
       WriteEeprom();
+      s_Connecting = false;
       WiFi.disconnect();
     }
   }
@@ -158,7 +155,6 @@ void setup()
 void loop()
 {
   static bool lastWifiStatus;
-  static bool connecting;
   // Check Serial for new configuration data
   ReadSerial();
 
@@ -166,7 +162,7 @@ void loop()
   if (WifiStatus && !lastWifiStatus)
   {
     Serial.println("WiFi connected");
-    connecting = false;
+    s_Connecting = false;
     Udp.begin(localPort);
   }
   else if (lastWifiStatus && !WifiStatus)
@@ -179,13 +175,13 @@ void loop()
 
   digitalWrite(D0, WifiStatus ? LOW : HIGH);
 
-  if (!WifiStatus && !connecting & &s_EepromData.ipAddress != 0 &&
+  if (!WifiStatus && !s_Connecting & &s_EepromData.ipAddress != 0 &&
       s_EepromData.gateway != 0 &&
       s_EepromData.subnetMask != 0 &&
       strlen(s_EepromData.wifiSsid) != 0 &&
       strlen(s_EepromData.wifiPassword) != 0)
   {
-    connecting = true;
+    s_Connecting = true;
     // Connect to WiFi network
     Serial.print("Connecting to ");
     Serial.println(s_EepromData.wifiSsid);
