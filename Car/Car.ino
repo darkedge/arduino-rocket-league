@@ -4,7 +4,7 @@
 #include <WiFiUdp.h>
 #include <Servo.h>
 #include <EEPROM.h>
-#if 0
+
 Servo myServo;  // create a servo object
 
 const char* ssid = "Ziggo25706";
@@ -68,17 +68,30 @@ static void WriteEeprom()
   Serial.println("Written EEPROM.");
 }
 
+// https://stackoverflow.com/questions/1680365/integer-to-ip-address-c
+static void print_ip(uint32_t ip)
+{
+  uint8_t bytes[4];
+  bytes[0] = ip & 0xFF;
+  bytes[1] = (ip >> 8) & 0xFF;
+  bytes[2] = (ip >> 16) & 0xFF;
+  bytes[3] = (ip >> 24) & 0xFF;
+  char buf[16] = {};
+  sprintf(buf, "%d.%d.%d.%d", bytes[3], bytes[2], bytes[1], bytes[0]);
+  Serial.println(buf);
+}
+
 static void PrintEepromData()
 {
-  Serial.print("IP Address: ");
-  Serial.println(s_EepromData.ipAddress);
-  Serial.print("Subnet Mask: ");
-  Serial.println(s_EepromData.subnetMask);
-  Serial.print("Gateway: ");
-  Serial.println(s_EepromData.gateway);
-  Serial.print("SSID: ");
+  Serial.print("\tIP Address: ");
+  print_ip(s_EepromData.ipAddress);
+  Serial.print("\tSubnet Mask: ");
+  print_ip(s_EepromData.subnetMask);
+  Serial.print("\tGateway: ");
+  print_ip(s_EepromData.gateway);
+  Serial.print("\tSSID: ");
   Serial.println(s_EepromData.wifiSsid);
-  Serial.print("Password: ");
+  Serial.print("\tPassword: ");
   Serial.println(s_EepromData.wifiPassword);
 }
 
@@ -100,7 +113,6 @@ void ReadSerial()
 
   if (Serial.available() > 0)
   {
-    digitalWrite(D0, LOW);
     char c = Serial.read();
 
     buf[numRead++] = c;
@@ -121,6 +133,7 @@ void ReadSerial()
 void setup()
 {
   Serial.begin(115200);
+  Serial.println(); // Insert newline after initial garbage(?) output
   myServo.attach(SERVO_PIN);
   EEPROM.begin(512);
   delay(10);
@@ -137,6 +150,9 @@ void setup()
 
   pinMode(D0, OUTPUT);
   digitalWrite(D0, HIGH);
+
+  Serial.print("Config size: ");
+  Serial.println(sizeof(EepromData));
 }
 
 void loop()
@@ -160,6 +176,8 @@ void loop()
     Udp.stop();
   }
   lastWifiStatus = WifiStatus;
+
+  digitalWrite(D0, WifiStatus ? LOW : HIGH);
 
   if (!WifiStatus && !connecting & &s_EepromData.ipAddress != 0 &&
       s_EepromData.gateway != 0 &&
@@ -255,22 +273,5 @@ void loop()
         last.boost = packet.boost;
       }
     }
-  }
-}
-#endif
-
-void setup()
-{
-  Serial.begin(115200);
-
-  pinMode(D0, OUTPUT);
-  digitalWrite(D0, HIGH);
-}
-
-void loop()
-{
-  if (Serial.available() > 0)
-  {
-    digitalWrite(D0, LOW);
   }
 }

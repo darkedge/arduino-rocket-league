@@ -15,6 +15,8 @@ GTextField fieldGateway;
 GTextField fieldSsid;
 GTextField fieldPassword;
 
+GTextArea textArea;
+
 GButton buttonConfirm;
 
 Serial myPort;
@@ -24,7 +26,7 @@ GOption options[];
 
 public void setup()
 {
-  size(500, 300);
+  size(720, 480);
   G4P.setGlobalColorScheme(GCScheme.PURPLE_SCHEME);
 
   int y = 10;
@@ -46,6 +48,9 @@ public void setup()
 
   buttonConfirm = new GButton(this, 10, y, 70, 20, "Configure");
 
+  textArea = new GTextArea(this, 400, 10, 300, 200);
+  textArea.setTextEditEnabled(false);
+
   y = 10;
   toggleGroup = new GToggleGroup();
   String[] names = Serial.list();
@@ -59,9 +64,23 @@ public void setup()
   }
 }
 
+Serial serial;
+
 public void draw()
 {
   background(200, 128, 200);
+
+  if (serial != null)
+  {
+    while (serial.available() > 0)
+    {
+      String myString = serial.readStringUntil(10);
+      if (myString != null)
+      {
+        textArea.appendText(myString);
+      }
+    }
+  }
 }
 
 int ParseIpStringToInt(String string)
@@ -84,7 +103,21 @@ int ParseIpStringToInt(String string)
 }
 
 public void handleTextEvents(GEditableTextControl textcontrol, GEvent event) { /* code */ }
-public void handleToggleControlEvents(GToggleControl option, GEvent event) { /* code */ }
+
+public void handleToggleControlEvents(GToggleControl option, GEvent event)
+{
+  for (int i = 0; i < options.length; i++)
+  {
+    if (options[i] != null && options[i].isSelected())
+    {
+      if (serial != null)
+      {
+        serial.stop();
+      }
+      serial = new Serial(this, options[i].getText(), 115200);
+    }
+  }
+}
 
 public void handleButtonEvents(GButton button, GEvent event)
 {
@@ -115,10 +148,10 @@ public void handleButtonEvents(GButton button, GEvent event)
                           .put(pw)
                           .put(pad1);
 
-          Serial serial = new Serial(this, options[i].getText(), 115200);
-          serial.write(bb.array());
-          delay(100);
-          serial.stop();
+          if (serial != null)
+          {
+            serial.write(bb.array());
+          }
         }
       }
     }
