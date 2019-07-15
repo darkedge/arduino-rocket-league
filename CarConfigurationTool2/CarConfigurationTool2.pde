@@ -20,9 +20,9 @@ GTextArea textArea;
 GButton buttonConfirm;
 
 Serial myPort;
-GToggleGroup toggleGroup;
+GDropList dropList;
 
-GOption options[];
+Serial serial;
 
 public void setup()
 {
@@ -52,19 +52,15 @@ public void setup()
   textArea.setTextEditEnabled(false);
 
   y = 10;
-  toggleGroup = new GToggleGroup();
   String[] names = Serial.list();
-  options = new GOption[names.length];
-  for (int i = 0; i < names.length; i++)
+  if (names.length == 0)
   {
-    String name = names[i];
-    options[i] = new GOption(this, 310, y, 100, 20, name);
-    toggleGroup.addControl(options[i]);
-    y += 30;
+    names = new String[]{"N/A"};
   }
+  dropList = new GDropList(this, 310, y, 70, 100);
+  dropList.setItems(names,0);
+  handleDropListEvents(dropList, GEvent.CLICKED);
 }
-
-Serial serial;
 
 public void draw()
 {
@@ -104,28 +100,23 @@ int ParseIpStringToInt(String string)
 
 public void handleTextEvents(GEditableTextControl textcontrol, GEvent event) { /* code */ }
 
-public void handleToggleControlEvents(GToggleControl option, GEvent event)
-{
-  for (int i = 0; i < options.length; i++)
+public void handleDropListEvents(GDropList list, GEvent event) {
+  if (serial != null)
   {
-    if (options[i] != null && options[i].isSelected())
-    {
-      if (serial != null)
-      {
-        serial.stop();
-      }
-      serial = new Serial(this, options[i].getText(), 115200);
-    }
+    serial.stop();
   }
+  serial = new Serial(this, list.getSelectedText(), 115200);
 }
 
 public void handleButtonEvents(GButton button, GEvent event)
 {
   if (event == GEvent.CLICKED)
   {
-    for (int i = 0; i < options.length; i++)
-    {
-      if (options[i] != null && options[i].isSelected())
+      if (dropList.getSelectedText().equals("N/A"))
+      {
+        textArea.appendText("No serial device available.");
+      }
+      else
       {
         int ip = ParseIpStringToInt(fieldIpAddress.getText());
         int subnet = ParseIpStringToInt(fieldSubnetMask.getText());
@@ -154,6 +145,5 @@ public void handleButtonEvents(GButton button, GEvent event)
           }
         }
       }
-    }
   }
 }
