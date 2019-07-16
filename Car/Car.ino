@@ -40,50 +40,48 @@ WiFiUDP Udp;
 
 static constexpr int s_EepromAddress = 0;
 
+struct WifiCredentials
+{
+  char ssid[32];
+  char password[32];
+} __attribute__((packed));
+
 struct EepromData
 {
   uint32_t ipAddress;
   uint32_t subnetMask;
   uint32_t gateway;
-  char wifiSsid[32];
-  char wifiPassword[32];
+  WifiCredentials credentials;
 } __attribute__((packed));
 
 static EepromData s_EepromData;
+
+static void PrintCredentials()
+{
+  Serial.print("\tSSID: ");
+  Serial.println(s_EepromData.credentials.ssid);
+  Serial.print("\tPassword: ");
+  Serial.println(s_EepromData.credentials.password);
+}
+
+static void PrintEepromData()
+{
+  Serial.print("\tIP Address: ");
+  Serial.println(IPAddress(s_EepromData.ipAddress).toString());
+  Serial.print("\tSubnet Mask: ");
+  Serial.println(IPAddress(s_EepromData.subnetMask).toString());
+  Serial.print("\tGateway: ");
+  Serial.println(IPAddress(s_EepromData.gateway).toString());
+  PrintCredentials();
+}
 
 // https://github.com/esp8266/Arduino/issues/3275
 static void WriteEeprom()
 {
   EEPROM.put(s_EepromAddress, s_EepromData);
   EEPROM.commit();
+  PrintEepromData();
   Serial.println("Written EEPROM.");
-}
-
-// https://stackoverflow.com/questions/1680365/integer-to-ip-address-c
-static void print_ip(uint32_t ip)
-{
-  uint8_t bytes[4];
-  bytes[0] = ip & 0xFF;
-  bytes[1] = (ip >> 8) & 0xFF;
-  bytes[2] = (ip >> 16) & 0xFF;
-  bytes[3] = (ip >> 24) & 0xFF;
-  char buf[16] = {};
-  sprintf(buf, "%d.%d.%d.%d", bytes[3], bytes[2], bytes[1], bytes[0]);
-  Serial.println(buf);
-}
-
-static void PrintEepromData()
-{
-  Serial.print("\tIP Address: ");
-  print_ip(s_EepromData.ipAddress);
-  Serial.print("\tSubnet Mask: ");
-  print_ip(s_EepromData.subnetMask);
-  Serial.print("\tGateway: ");
-  print_ip(s_EepromData.gateway);
-  Serial.print("\tSSID: ");
-  Serial.println(s_EepromData.wifiSsid);
-  Serial.print("\tPassword: ");
-  Serial.println(s_EepromData.wifiPassword);
 }
 
 // https://github.com/esp8266/Arduino/issues/3275
@@ -99,12 +97,24 @@ static RLPacket last;
 static bool s_Connecting;
 
 
+static void ConnectDhcp()
+{
+  s_Connecting = true;
+  // Connect to WiFi network
+  Serial.print("Connecting to \"");
+  Serial.print(s_EepromData.credentials.ssid);
+  Serial.println("\" using DHCP...");
+
+  WiFi.begin(s_EepromData.credentials.ssid, s_EepromData.credentials.password);
+}
+
+
 /**
  * Check the serial communication for new configuration data
  */
 void ReadSerial()
 {
-  static byte buf[sizeof(EepromData)];
+  static byte buf[sizeof(WifiCredentials)];
   static int numRead;
 
   if (Serial.available() > 0)
@@ -115,13 +125,15 @@ void ReadSerial()
     if (numRead == sizeof(buf)) // Done reading
     {
       numRead = 0;
-      memcpy(&s_EepromData, buf, sizeof(buf));
+      memcpy(&s_EepromData.credentials, buf, sizeof(buf));
       Serial.println("Received config:");
-      PrintEepromData();
+      PrintCredentials();
       memset(buf, 0, sizeof(buf));
       WriteEeprom();
       s_Connecting = false;
       WiFi.disconnect();
+
+      ConnectDhcp();
     }
   }
 }
@@ -147,28 +159,25 @@ void setup()
 
   pinMode(D0, OUTPUT);
   digitalWrite(D0, HIGH);
-
-  Serial.print("Config size: ");
-  Serial.println(sizeof(EepromData));
 }
 
-void loop()
+static bool CheckWifiStatus()
 {
   static bool lastWifiStatus;
-  // Check Serial for new configuration data
-  ReadSerial();
-
   bool WifiStatus = (WiFi.status() == WL_CONNECTED);
   if (WifiStatus && !lastWifiStatus)
   {
     Serial.println("WiFi connected");
+    s_EepromData.ipAddress = WiFi.localIP();
+    s_EepromData.subnetMask = WiFi.subnetMask();
+    s_EepromData.gateway = WiFi.gatewayIP();
+    WriteEeprom();
     s_Connecting = false;
     Udp.begin(localPort);
   }
   else if (lastWifiStatus && !WifiStatus)
   {
     Serial.println("WiFi disconnected");
-    WiFi.disconnect();
     Udp.stop();
   }
   lastWifiStatus = WifiStatus;
@@ -178,32 +187,32 @@ void loop()
   if (!WifiStatus && !s_Connecting & &s_EepromData.ipAddress != 0 &&
       s_EepromData.gateway != 0 &&
       s_EepromData.subnetMask != 0 &&
-      strlen(s_EepromData.wifiSsid) != 0 &&
-      strlen(s_EepromData.wifiPassword) != 0)
+      strlen(s_EepromData.credentials.ssid) != 0 &&
+      strlen(s_EepromData.credentials.password) != 0)
   {
     s_Connecting = true;
     // Connect to WiFi network
-    Serial.print("Connecting to ");
-    Serial.println(s_EepromData.wifiSsid);
+    Serial.print("Connecting to \"");
+    Serial.print(s_EepromData.credentials.ssid);
+    Serial.print("\" using static IP...");
 
-    IPAddress ip((s_EepromData.ipAddress & 0xff000000) >> 24
-                 , (s_EepromData.ipAddress & 0x00ff0000) >> 16
-                 , (s_EepromData.ipAddress & 0x0000ff00) >> 8
-                 , (s_EepromData.ipAddress & 0x000000ff));
-    IPAddress gateway((s_EepromData.gateway & 0xff000000) >> 24
-                      , (s_EepromData.gateway & 0x00ff0000) >> 16
-                      , (s_EepromData.gateway & 0x0000ff00) >> 8
-                      , (s_EepromData.gateway & 0x000000ff));
-    IPAddress subnet((s_EepromData.subnetMask & 0xff000000) >> 24
-                     , (s_EepromData.subnetMask & 0x00ff0000) >> 16
-                     , (s_EepromData.subnetMask & 0x0000ff00) >> 8
-                     , (s_EepromData.subnetMask & 0x000000ff));
+    IPAddress ip(s_EepromData.ipAddress);// = CreateIpAddressFromUint32(s_EepromData.ipAddress);
+    IPAddress gateway(s_EepromData.gateway);// = CreateIpAddressFromUint32(s_EepromData.gateway);
+    IPAddress subnet(s_EepromData.subnetMask);// = CreateIpAddressFromUint32(s_EepromData.subnetMask);
 
     WiFi.config(ip, gateway, subnet);
-    WiFi.begin(s_EepromData.wifiSsid, s_EepromData.wifiPassword);
+    WiFi.begin(s_EepromData.credentials.ssid, s_EepromData.credentials.password);
   }
 
-  if (WifiStatus)
+  return WifiStatus;
+}
+
+void loop()
+{
+  // Check Serial for new configuration data
+  ReadSerial();
+
+  if (CheckWifiStatus())
   {
     // if there's data available, read a packet
     int packetSize = Udp.parsePacket();
@@ -213,18 +222,18 @@ void loop()
       RLPacket packet;
       Udp.read((char*)&packet, sizeof(packet));
 
-      Serial.print(packet.horizontal);
-      Serial.print(" ");
-      Serial.print(packet.forwardBackward);
-      Serial.print(" ");
-      Serial.println(packet.boost);
+      //Serial.print(packet.horizontal);
+      //Serial.print(" ");
+      //Serial.print(packet.forwardBackward);
+      //Serial.print(" ");
+      //Serial.println(packet.boost);
 
       // Steering left/right
       if (packet.horizontal != last.horizontal)
       {
-        Serial.print(digitalRead(LEFT_BLOCK));
-        Serial.print(" ");
-        Serial.println(digitalRead(RIGHT_BLOCK));
+        //Serial.print(digitalRead(LEFT_BLOCK));
+        //Serial.print(" ");
+        //Serial.println(digitalRead(RIGHT_BLOCK));
         // set the servo position
         if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
             ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
