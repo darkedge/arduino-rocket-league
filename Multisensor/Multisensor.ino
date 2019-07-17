@@ -1,4 +1,22 @@
 /**
+ * Arduino MEGA 2560
+ * https://www.theengineeringprojects.com/wp-content/uploads/2018/06/introduction-to-arduino-mega-5.png
+ * 54 Digital Input / Output Pins: D0 – D53
+ * 16 Analog Input / Output Pins: A0 – A15
+ * 12 Pulse Width Modulation (PWM) Pins: D2 – D13
+ * 4 Serial Communication Ports (8 Pins):
+ *   Pin #0 (RX) , Pin #1 (TX)
+ *   Pin #19 (RX1) , Pin #18 (TX1)
+ *   Pin #17 (RX2) , Pin #16 (TX2)
+ *   Pin #15 (RX3) , Pin #14 (TX3)
+ * SPI Communication Pins:
+ *   Pin #50 (MISO)
+ *   Pin #51 (MOSI)
+ *   Pin #52 (SCK)
+ *   Pin #53 (SS)
+ * I2C Communication Pins: Pin #20 (SDA), Pin #21 (SCL)
+ * Built-In LED for Testing: Pin #13
+ * 
  * void rfid.begin(
  *    csnPin = 2,
  *    sckPin = 4,
@@ -8,14 +26,15 @@
  *    NRSTPD = 6
  * );
  *
- * RFID-522
- *   RX SDA SS 8 - Connect to 3 (chipSelectPin)
- *         SCK 7 - Connect to 4 (sckPin)
- *        MOSI 6 - Connect to 5 (mosiPin)
- * TX SCL MISO 5 - Connect to i+7 (misoPin)
+ * RFID-RC522 - Currently connected via SOFTSPI (rfid1 library)
+ * https://lastminuteengineers.com/wp-content/uploads/2018/07/RC522-RFID-Reader-Writer-Module-Pinout.jpg
+ *   RX SDA SS 8 - Connect to D3
+ *         SCK 7 - Connect to D4
+ *        MOSI 6 - Connect to D5
+ * TX SCL MISO 5 - Connect to D7-D53
  *         IRQ 4 - <disconnected>
  *         GND 3 - Connect to ground
- *         RST 2 - Connect to 6 (NRSTPD - Not Reset and Power-down)
+ *         RST 2 - Connect to D6 (NRSTPD - Not Reset and Power-down)
  *         VCC 1 - Connect to 3.3V
  *
  * VCC supplies power for the module. This can be anywhere from 2.5 to 3.3 volts. You can connect it
