@@ -16,7 +16,7 @@
  *   Pin #53 (SS)
  * I2C Communication Pins: Pin #20 (SDA), Pin #21 (SCL)
  * Built-In LED for Testing: Pin #13
- * 
+ *
  * void rfid.begin(
  *    csnPin = 2,
  *    sckPin = 4,

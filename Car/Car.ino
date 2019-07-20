@@ -1,27 +1,7 @@
-// Auto wordt aangestuurd via Wifi.
-// Stuur servo zit op 6 van het NodeMCU bordje  (oranje kabel binnen)
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <Servo.h>
 #include <EEPROM.h>
-
-Servo myServo;  // create a servo object
-
-const int SERVO_PIN    = D6;
-const int RIGHT_BLOCK  = D5; // Note: metalen plaatje zit links
-const int LEFT_BLOCK   = D4; // Note: metalen plaatje zit rechts
-const int BLOCK_SIGNAL = D2; // Sluit deze aan op de veer van het stuur
-
-// D2->Veer->Plaatje links ->|->D5
-//         ->Plaatje rechts->|->D4
-//                           |->10 kOhm weerstand->Ground
-
-
-// https://hackaday.io/project/8856-incubator-controller/log/29291-node-mcu-motor-shield
-const int PWMA = D3;
-const int DIRA = D1;
-const int DIRB = D7;
-unsigned int localPort = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
 
 struct RLPacket
 {
@@ -30,15 +10,10 @@ struct RLPacket
   uint8_t boost;
 } __attribute__((packed));
 
-// buffers for receiving and sending data
-#define UDP_TX_PACKET_MAX_SIZE 24
-char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming packet,
-char ReplyBuffer[] = "acknowledged";        // a string to send back
-
-// An EthernetUDP instance to let us send and receive packets over UDP
-WiFiUDP Udp;
-
-static constexpr int s_EepromAddress = 0;
+struct HeartbeatPacket
+{
+  uint16_t code;
+} __attribute__((packed));
 
 struct WifiCredentials
 {
@@ -54,7 +29,29 @@ struct EepromData
   WifiCredentials credentials;
 } __attribute__((packed));
 
+/**
+ * NodeMCU(N) -> Deek-Robot(D) -> RC Car(C)
+ * https://www.theengineeringprojects.com/wp-content/uploads/2018/10/Introduction-to-NodeMCU-V3.png
+ * http://www.deek-robot.com/edit123/uploadfile/20131128182859312.jpg
+ */
+// VIN(N)->VCC(D)
+// GND(N)->GND(D)
+static const int IN2          = D1; // D1(N) -> IN2(D)
+static const int BLOCK_SIGNAL = D2; // D2(N) -> Steer Spring(C)
+static const int EN1          = D3; // D3(N) -> EN1(D)
+static const int LEFT_BLOCK   = D4; // D4(N) + Right Steer Stop -> 10 kOhm -> GND(N)
+static const int RIGHT_BLOCK  = D5; // D5(N) + Left Steer Stop -> 10 kOhm -> GND(N)
+static const int SERVO_PIN    = D6; // D6(N) -> Servo (DM-S0090D), orange wire
+static const int IN1          = D7; // D7(N) -> IN1(D)
+
+static const uint16_t localPort = 0x524C; // ASCII value of "RL" (Rocket League)
+static const int s_EepromAddress = 0;
+
+static Servo myServo;
+static WiFiUDP Udp;
 static EepromData s_EepromData;
+static bool s_Connecting;
+
 
 static void PrintCredentials()
 {
@@ -63,6 +60,7 @@ static void PrintCredentials()
   Serial.print("\tPassword: ");
   Serial.println(s_EepromData.credentials.password);
 }
+
 
 static void PrintEepromData()
 {
@@ -75,16 +73,16 @@ static void PrintEepromData()
   PrintCredentials();
 }
 
-// https://github.com/esp8266/Arduino/issues/3275
+
 static void WriteEeprom()
 {
   EEPROM.put(s_EepromAddress, s_EepromData);
-  EEPROM.commit();
+  EEPROM.commit(); // https://github.com/esp8266/Arduino/issues/3275
   PrintEepromData();
   Serial.println("Written EEPROM.");
 }
 
-// https://github.com/esp8266/Arduino/issues/3275
+
 static void ReadEeprom()
 {
   s_EepromData = {};
@@ -92,9 +90,6 @@ static void ReadEeprom()
   Serial.println("Read from EEPROM:");
   PrintEepromData();
 }
-
-static RLPacket last;
-static bool s_Connecting;
 
 
 static void ConnectDhcp()
@@ -148,9 +143,9 @@ void setup()
   delay(10);
   ReadEeprom();
 
-  pinMode(DIRA, OUTPUT);
-  pinMode(DIRB, OUTPUT);
-  pinMode(PWMA, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(EN1, OUTPUT);
   pinMode(BLOCK_SIGNAL, OUTPUT);
   pinMode(LEFT_BLOCK, INPUT);
   pinMode(RIGHT_BLOCK, INPUT);
@@ -196,15 +191,70 @@ static bool CheckWifiStatus()
     Serial.print(s_EepromData.credentials.ssid);
     Serial.print("\" using static IP...");
 
-    IPAddress ip(s_EepromData.ipAddress);// = CreateIpAddressFromUint32(s_EepromData.ipAddress);
-    IPAddress gateway(s_EepromData.gateway);// = CreateIpAddressFromUint32(s_EepromData.gateway);
-    IPAddress subnet(s_EepromData.subnetMask);// = CreateIpAddressFromUint32(s_EepromData.subnetMask);
+    IPAddress ip(s_EepromData.ipAddress);
+    IPAddress gateway(s_EepromData.gateway);
+    IPAddress subnet(s_EepromData.subnetMask);
 
     WiFi.config(ip, gateway, subnet);
     WiFi.begin(s_EepromData.credentials.ssid, s_EepromData.credentials.password);
   }
 
   return WifiStatus;
+}
+
+
+static void ParseRlPacket()
+{
+  static RLPacket last;
+  RLPacket packet;
+  Udp.read((char*)&packet, sizeof(packet));
+
+  // Steering left/right
+  if (packet.horizontal != last.horizontal)
+  {
+    // set the servo position
+    if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
+        ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
+    {
+      myServo.write(packet.horizontal);
+    }
+    last.horizontal = packet.horizontal;
+  }
+
+  // Forward/backward
+  if (packet.forwardBackward != last.forwardBackward)
+  {
+    if (packet.forwardBackward < 0)
+    {
+      digitalWrite(IN2, HIGH);
+      digitalWrite(IN1, LOW);
+      analogWrite(EN1, -packet.forwardBackward);
+    }
+    else
+    {
+      digitalWrite(IN2, LOW);
+      digitalWrite(IN1, HIGH);
+      analogWrite(EN1, packet.forwardBackward);
+    }
+    last.forwardBackward = packet.forwardBackward;
+  }
+
+  if (last.forwardBackward == 0)
+  {
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN1, LOW);
+    analogWrite(EN1, packet.forwardBackward);
+  }
+
+  // Reset neutral on boost
+  if (packet.boost != last.boost)
+  {
+    if (packet.boost)
+    {
+      myServo.writeMicroseconds(1500); // Reset to neutral
+    }
+    last.boost = packet.boost;
+  }
 }
 
 void loop()
@@ -218,64 +268,17 @@ void loop()
     int packetSize = Udp.parsePacket();
     if (packetSize == sizeof(RLPacket))
     {
-      // read the packet into packetBuffer
-      RLPacket packet;
+      ParseRlPacket();
+    }
+    else if (packetSize == sizeof(HeartbeatPacket))
+    {
+      HeartbeatPacket packet;
       Udp.read((char*)&packet, sizeof(packet));
-
-      //Serial.print(packet.horizontal);
-      //Serial.print(" ");
-      //Serial.print(packet.forwardBackward);
-      //Serial.print(" ");
-      //Serial.println(packet.boost);
-
-      // Steering left/right
-      if (packet.horizontal != last.horizontal)
+      if (packet.code == localPort) // OK to reply
       {
-        //Serial.print(digitalRead(LEFT_BLOCK));
-        //Serial.print(" ");
-        //Serial.println(digitalRead(RIGHT_BLOCK));
-        // set the servo position
-        if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
-            ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
-        {
-          myServo.write(packet.horizontal);
-        }
-        last.horizontal = packet.horizontal;
-      }
-
-      // Forward/backward
-      if (packet.forwardBackward != last.forwardBackward)
-      {
-        if (packet.forwardBackward < 0)
-        {
-          digitalWrite(DIRA, HIGH);
-          digitalWrite(DIRB, LOW);
-          analogWrite(PWMA, -packet.forwardBackward);
-        }
-        else
-        {
-          digitalWrite(DIRA, LOW);
-          digitalWrite(DIRB, HIGH);
-          analogWrite(PWMA, packet.forwardBackward);
-        }
-        last.forwardBackward = packet.forwardBackward;
-      }
-
-      if (last.forwardBackward == 0)
-      {
-        digitalWrite(DIRA, LOW);
-        digitalWrite(DIRB, LOW);
-        analogWrite(PWMA, packet.forwardBackward);
-      }
-
-      // Reset neutral on boost
-      if (packet.boost != last.boost)
-      {
-        if (packet.boost)
-        {
-          myServo.writeMicroseconds(1500); // Reset to neutral
-        }
-        last.boost = packet.boost;
+        Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+        Udp.write((uint8_t*)&localPort, sizeof(localPort));
+        Udp.endPacket();
       }
     }
   }

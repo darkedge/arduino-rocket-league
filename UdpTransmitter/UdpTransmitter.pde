@@ -1,60 +1,44 @@
 // Control schemes moeten de naam "ps4" of "xbox360" hebben.
 
 import hypermedia.net.*;
-
 import org.gamecontrolplus.gui.*;
 import org.gamecontrolplus.*;
-import net.java.games.input.*;
-
-
-import g4p_controls.G4P;
-import g4p_controls.GAlign;
-import g4p_controls.GButton;
-import g4p_controls.GCScheme;
-import g4p_controls.GEvent;
-import g4p_controls.GLabel;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileFilter;
-
-import org.gamecontrolplus.Configuration;
-import org.gamecontrolplus.ControlDevice;
-import org.gamecontrolplus.ControlIO;
+import g4p_controls.*;
 import java.nio.*;
-import java.util.Arrays;
+import java.io.*;
+import java.net.*;
+import java.util.*;
 
-
-GLabel lblPath, lblSketch;
-int panelHeight;
-GButton btnSelSketch;
+private static int panelHeight;
+private static GButton btnSelSketch;
 
 private enum EDeviceType
 {
   PS4,
   Xbox360,
-};
+}
+
 private class RLController
 {
   EDeviceType deviceType;
   ControlDevice device;
 }
+
 private static final int NUM_CARS = 4;
 private RLController[] devices = new RLController[NUM_CARS];
 private boolean started = false;
 
-// Ethernet configuratie van de auto (destination)
-String[] ips = {"192.168.178.102", "192.168.178.103", "192.168.178.104", "192.168.178.105"};
-int port = 19538; // decimale waarde van "RL" (Rocket League) in ASCII
+private static final short port = 0x524C; // ASCII value of "RL" (Rocket League)
+private static UDP udpTX;
+private static String broadcastAddress;
 
-String message = new String("Hello");
-UDP udpTX;
+private static byte[] lastCommand;
 
-byte[] lastCommand;
+// Timing
+private static int accumulator = 0;
+private static int lastTime = 0;
 
+private HashMap<String, Integer> carMapping;
 
 List<TSelectEntry> deviceEntries =  new ArrayList<TSelectEntry>();
 
@@ -66,10 +50,44 @@ public void settings()
   size(800, appHeight);
 }
 
+static void GetLocalAddress()
+{
+  try
+  {
+    Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+    for (NetworkInterface netint : Collections.list(nets))
+    {
+      if (netint.isUp())
+      {
+        Enumeration<InetAddress> inetAddresses = netint.getInetAddresses();
+        for (InetAddress inetAddress : Collections.list(inetAddresses))
+        {
+          if (inetAddress instanceof Inet4Address && !inetAddress.isLoopbackAddress())
+          {
+            byte[] address = inetAddress.getAddress();
+            byte[] copy = Arrays.copyOf(address, address.length);
+            copy[3] = (byte)255; // Change to broadcast
+            String str = InetAddress.getByAddress(copy).toString();
+            broadcastAddress = str.substring(str.indexOf("/") + 1);
+            return;
+          }
+        }
+      }
+    }
+  }
+  catch (Exception e) {}
+}
+
 void setup()
 {
+  GetLocalAddress();
+  carMapping = new HashMap<String, Integer>();
+
   ControlIO control = ControlIO.getInstance(this);
   udpTX = new UDP(this);
+  udpTX.broadcast(true);
+  udpTX.setReceiveHandler("myCustomReceiveHandler");
+  udpTX.listen(true);
 
   G4P.messagesEnabled(false);
   G4P.setGlobalColorScheme(GCScheme.GREEN_SCHEME);
@@ -92,8 +110,8 @@ void setup()
   // Reposition entries on screen
   for (int i = 0; i < deviceEntries.size(); i++)
     deviceEntries.get(i).setIndex(panelHeight + 20, i);
-  //    sel
-  System.getProperty("file.separator");
+
+  lastTime = millis();
 }
 
 private void createSelectionInterface()
@@ -156,6 +174,7 @@ private void addControllers()
   }
 }
 
+
 public void handleButtonEvents(GButton button, GEvent event)
 {
   if (button == btnSelSketch && event == GEvent.CLICKED)
@@ -168,8 +187,47 @@ public void handleButtonEvents(GButton button, GEvent event)
   }
 }
 
+
+void myCustomReceiveHandler(byte[] message, String ip, int port)
+{
+  try
+  {
+    short code = ByteBuffer.wrap(message)
+                 .order(ByteOrder.LITTLE_ENDIAN)
+                 .getShort();
+    if (code == port)
+    {
+      if (!carMapping.containsKey(ip))
+      {
+        print("Adding car IP to list: ");
+        println(ip);
+        carMapping.put(ip, -1);
+      }
+    }
+  }
+  catch (Exception e) {}
+}
+
+
 public void draw()
 {
+  int now = millis();
+  accumulator += now - lastTime;
+  lastTime = now;
+
+  if (accumulator > 1000) // Send heartbeat
+  {
+    accumulator %= 1000;
+
+    byte[] packet = ByteBuffer
+                    .allocate(2)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .putShort(port)
+                    .array();
+
+    udpTX.send(packet, broadcastAddress, port);
+  }
+
   if (started)
   {
     for (int i = 0; i < NUM_CARS; i++)
@@ -211,7 +269,7 @@ public void draw()
         if (lastCommand == null || !Arrays.equals(newCommand, lastCommand))
         {
           println(horizontal + " " + forwardBackward + " " + boost);
-          udpTX.send(newCommand, ips[i], port);
+          //udpTX.send(newCommand, ips[i], port);
           lastCommand = Arrays.copyOf(newCommand, newCommand.length);
         }
       }
@@ -220,20 +278,10 @@ public void draw()
 
 
   background(255, 255, 220);
-
-  stroke(230, 230, 200);
-  fill(240, 240, 210);
-  int y = panelHeight;
-  while (y < height)
-  {
-    rect(0, y, width, 20);
-    y += 40;
-  }
 }
 
 public void dispose()
 {
-  System.out.println("Disposing");
   for (TSelectEntry entry : deviceEntries)
   {
     if (entry.winCofig != null)
