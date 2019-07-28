@@ -1,5 +1,4 @@
-// Control schemes moeten de naam "ps4" of "xbox360" hebben.
-
+import processing.serial.*;
 import hypermedia.net.*;
 import org.gamecontrolplus.gui.*;
 import org.gamecontrolplus.*;
@@ -10,7 +9,7 @@ import java.net.*;
 import java.util.*;
 
 private static int panelHeight;
-private static GButton btnSelSketch;
+private static GButton buttonStart;
 
 private enum EDeviceType
 {
@@ -44,12 +43,18 @@ private Map<String, Integer> carMapping;
 
 private List<RLController> controllers =  new ArrayList<RLController>();
 
+private GLabel lblGoal0;
+private GLabel lblGoal1;
+private GDropList dropGoal0;
+private GDropList dropGoal1;
+private GTextArea textArea;
+
+private Serial srGoal0;
+private Serial srGoal1;
+
 public void settings()
 {
-  ControlIO control = ControlIO.getInstance(this);
-  panelHeight = 40;
-  int appHeight = control.getNumberOfDevices() * 20 + 40 + panelHeight;
-  size(800, appHeight);
+  size(800, 600);
 }
 
 static void GetLocalAddress()
@@ -78,11 +83,6 @@ static void GetLocalAddress()
     }
   }
   catch (Exception e) {}
-}
-
-public static void FillMe()
-{
-  println("filling!");
 }
 
 void setup()
@@ -151,13 +151,54 @@ void setup()
   // Reposition entries on screen
   for (int i = 0; i < controllers.size(); i++)
     controllers.get(i).entry.setIndex(panelHeight + 20, i);
+    
+  lblGoal0 = new GLabel(this, 400, panelHeight + 20 + 4, 120, 20, "Goal0");
+  lblGoal1 = new GLabel(this, 400, panelHeight + 40 + 4, 120, 20, "Goal1");
+  
+  List<String> list = new ArrayList<String>();
+  list.add("N/A");
+  list.addAll(Arrays.asList(Serial.list()));
+  String[] strings = list.toArray(new String[list.size()]);
+  dropGoal0 = new GDropList(this, 600, panelHeight + 20, 120, 100);
+  dropGoal0.setItems(strings, 0);
+  dropGoal1 = new GDropList(this, 600, panelHeight + 40, 120, 100);
+  dropGoal1.setItems(strings, 0);
+  handleDropListEvents(dropGoal0, GEvent.CLICKED);
+  handleDropListEvents(dropGoal1, GEvent.CLICKED);
+  textArea = new GTextArea(this, 4, 200, 796, 400);
 
   lastTime = millis();
 }
 
+public void handleDropListEvents(GDropList list, GEvent event)
+{
+  if (list == dropGoal0)
+  {
+    if (srGoal0 != null)
+    {
+      srGoal0.stop();
+    }
+    if (!list.getSelectedText().equals("N/A"))
+    {
+      srGoal0 = new Serial(this, list.getSelectedText(), 9600);
+    }
+  }
+  else if (list == dropGoal1)
+  {
+    if (srGoal1 != null)
+    {
+      srGoal1.stop();
+    }
+    if (!list.getSelectedText().equals("N/A"))
+    {
+      srGoal1 = new Serial(this, list.getSelectedText(), 9600);
+    }
+  }
+}
+
 private void createSelectionInterface()
 {
-  btnSelSketch = new GButton(this, width - 60, 4, 56, 33, "Start game");
+  buttonStart = new GButton(this, width - 60, 4, 56, 33, "Start game");
 
   GLabel lblControls = new GLabel(this, 0, panelHeight, width, 20);
   lblControls.setText("Game Devices Available");
@@ -173,11 +214,7 @@ private void addControllers()
   {
     if (!controller.entry.ipList.getSelectedText().equals("N/A"))
     {
-      if (controller.deviceType == EDeviceType.Xbox360)
-      {
-        //Configuration config = Configuration.makeConfiguration(this, EDeviceType.Xbox360.name());
-        controller.device.matches(Configuration.makeConfiguration(this, EDeviceType.Xbox360.name()));
-      }
+      controller.device.matches(Configuration.makeConfiguration(this, controller.deviceType.name()));
     }
   }
 }
@@ -185,7 +222,7 @@ private void addControllers()
 
 public void handleButtonEvents(GButton button, GEvent event)
 {
-  if (button == btnSelSketch && event == GEvent.CLICKED)
+  if (button == buttonStart && event == GEvent.CLICKED)
   {
     if (!started)
     {
@@ -296,6 +333,29 @@ public void draw()
     }
   }
 
+  if (srGoal0 != null)
+  {
+    while (srGoal0.available() > 0)
+    {
+      String myString = srGoal0.readStringUntil(10);
+      if (myString != null)
+      {
+        textArea.appendText(myString);
+      }
+    }
+  }
+  
+  if (srGoal1 != null)
+  {
+    while (srGoal1.available() > 0)
+    {
+      String myString = srGoal1.readStringUntil(10);
+      if (myString != null)
+      {
+        textArea.appendText(myString);
+      }
+    }
+  }
 
   background(255, 255, 220);
 }
