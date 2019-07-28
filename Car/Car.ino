@@ -1,3 +1,5 @@
+// Baud rate: 74880
+
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <Servo.h>
@@ -136,7 +138,7 @@ void ReadSerial()
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(74880);
   Serial.println(); // Insert newline after initial garbage(?) output
   myServo.attach(SERVO_PIN);
   EEPROM.begin(512);

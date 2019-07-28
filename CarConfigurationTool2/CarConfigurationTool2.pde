@@ -74,7 +74,10 @@ public void handleDropListEvents(GDropList list, GEvent event)
   {
     serial.stop();
   }
-  serial = new Serial(this, list.getSelectedText(), 115200);
+  if (!list.getSelectedText().equals("N/A"))
+  {
+    serial = new Serial(this, list.getSelectedText(), 74880);
+  }
 }
 
 public void handleButtonEvents(GButton button, GEvent event)
