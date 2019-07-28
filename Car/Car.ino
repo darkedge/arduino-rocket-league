@@ -156,6 +156,11 @@ void setup()
 
   pinMode(D0, OUTPUT);
   digitalWrite(D0, HIGH);
+
+  // Reset motor in case we reboot due to a power dip
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN1, LOW);
+  analogWrite(EN1, 0);
 }
 
 static bool CheckWifiStatus()
@@ -241,12 +246,14 @@ static void ParseRlPacket()
     last.forwardBackward = packet.forwardBackward;
   }
 
+#if 0 // TODO: What does this code do?
   if (last.forwardBackward == 0)
   {
     digitalWrite(IN2, LOW);
     digitalWrite(IN1, LOW);
     analogWrite(EN1, packet.forwardBackward);
   }
+#endif
 
   // Reset neutral on boost
   if (packet.boost != last.boost)
