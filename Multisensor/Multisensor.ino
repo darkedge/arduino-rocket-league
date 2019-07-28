@@ -72,7 +72,14 @@
 #include <rfid1.h>
 
 static RFID1 rfid;
-static const int NUM_RFID = 1;
+static const int MAX_NR_OF_SENSORS = 16;
+static const int NR_OF_SENSORS = 14;
+
+// D7-D22
+static const int TABLE[MAX_NR_OF_SENSORS] =
+{
+  7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+};
 
 void setup()
 {
@@ -83,7 +90,7 @@ void setup()
 void checkRFID(uint16_t i)
 {
   // Zet scanner aan
-  rfid.begin(2, 4, 5, i + 7, 3, 6); // 7, 8, 9, 10
+  rfid.begin(2, 4, 5, TABLE[i], 3, 6);
   rfid.init();
 
   uchar status;
@@ -113,7 +120,7 @@ void checkRFID(uint16_t i)
 
 void loop()
 {
-  for (uint16_t i = 0; i < NUM_RFID; i++)
+  for (uint16_t i = 0; i < NR_OF_SENSORS; i++)
   {
     // Deze iteraties duren ongeveer ~25 ms elk, soms met spikes van 62-63 ms.
     checkRFID(i);
