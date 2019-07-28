@@ -18,9 +18,14 @@ GDropList dropList;
 
 Serial serial;
 
-public void setup()
+public void settings()
 {
   size(720, 480);
+  pixelDensity(displayDensity());
+}
+
+public void setup()
+{
   G4P.setGlobalColorScheme(GCScheme.BLUE_SCHEME);
 
   int y = 10;

@@ -58,6 +58,7 @@ private GButton btnReset;
 public void settings()
 {
   size(800, 600);
+  pixelDensity(displayDensity());
 }
 
 static void GetLocalAddress()
