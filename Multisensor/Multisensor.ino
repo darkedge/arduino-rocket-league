@@ -1,6 +1,7 @@
 /**
  * Arduino MEGA 2560
  * https://www.theengineeringprojects.com/wp-content/uploads/2018/06/introduction-to-arduino-mega-5.png
+ * Baud rate: 9600
  * 54 Digital Input / Output Pins: D0 – D53
  * 16 Analog Input / Output Pins: A0 – A15
  * 12 Pulse Width Modulation (PWM) Pins: D2 – D13
@@ -61,15 +62,20 @@
  * identifying the other pins.
  */
 
+/**
+ * TODO:
+ * Use hardware SPI instead of SoftSPI used by RFID1 library
+ * Dynamic check for connected sensors (requires all available pins to be connected to ground)
+ * Remove Serial debugging, send detection messages to Processing in binary
+ */
 #include <SPI.h>
 #include <rfid1.h>
-RFID1 rfid;
 
-static constexpr auto NUM_RFID = 6;
+static RFID1 rfid;
+static const int NUM_RFID = 1;
 
 void setup()
 {
-  // initialize serial for debugging
   Serial.begin(9600);
   Serial.println("Hello World!");
 }
@@ -94,8 +100,9 @@ void checkRFID(uint16_t i)
   }
   if (status == MI_OK) // Scan was goed
   {
+    Serial.print("Sensor ");
     Serial.print(i);
-    Serial.print(" goal1!");
+    Serial.println(" tag detected!");
 
     // TODO: ID ophalen, maar dit lukt vaak niet.
 
