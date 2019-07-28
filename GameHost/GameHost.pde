@@ -178,7 +178,7 @@ private void DoSerial(Serial serial)
 {
   int attackers = (serial == srGoal0) ? 1 : 0;
   int defenders = (serial == srGoal0) ? 0 : 1;
-  
+
   if (serial != null)
   {
     while (serial.available() > 0)
@@ -193,22 +193,22 @@ private void DoSerial(Serial serial)
           {
             // Print custom message once
             goalTriggered = true;
-            textArea.appendText(string + "Goal scored!");
-            
-            if (false) // Optional: Get goal 
+            textArea.appendText("Team " + attackers + " scored!");
+
+            if (false) // Optional: Get goal
             {
-            String numbers = myString.replaceAll("\\D+", "");
-            try
-            {
-              int x = Integer.parseInt(numbers);
-            }
-            catch (NumberFormatException e) {}
+              String numbers = myString.replaceAll("\\D+", "");
+              try
+              {
+                int x = Integer.parseInt(numbers);
+              }
+              catch (NumberFormatException e) {}
             }
           }
         }
         else
         {
-          myString = string + myString;
+          myString = "Goal " + defenders + ": " + myString;
           textArea.appendText(myString);
         }
       }

@@ -64,6 +64,11 @@ public void draw()
   }
 }
 
+void serialEvent(Serial p)
+{
+  //println(p.readString());
+}
+
 public void handleTextEvents(GEditableTextControl textcontrol, GEvent event) { /* code */ }
 
 public void handleDropListEvents(GDropList list, GEvent event)
