@@ -73,7 +73,7 @@
 
 static RFID1 rfid;
 static const int MAX_NR_OF_SENSORS = 16;
-static const int NR_OF_SENSORS = 14;
+static const int NR_OF_SENSORS = 1;
 
 // D7-D22
 static const int TABLE[MAX_NR_OF_SENSORS] =
@@ -101,15 +101,14 @@ void checkRFID(uint16_t i)
   status = rfid.request(PICC_REQIDL, str);
   if (millis() - begin > 100)
   {
-    Serial.print("Sensor ");
-    Serial.print(i);
+    Serial.print("Sensor op D");
+    Serial.print(TABLE[i]);
     Serial.println(" is niet goed aangesloten.");
   }
   if (status == MI_OK) // Scan was goed
   {
-    Serial.print("Sensor ");
-    Serial.print(i);
-    Serial.println(" tag detected!");
+    Serial.print("Goal ");
+    Serial.println(i);
 
     // TODO: ID ophalen, maar dit lukt vaak niet.
 

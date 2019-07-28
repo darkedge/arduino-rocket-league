@@ -52,6 +52,9 @@ private GTextArea textArea;
 private Serial srGoal0;
 private Serial srGoal1;
 
+private boolean goalTriggered;
+private GButton btnReset;
+
 public void settings()
 {
   size(800, 600);
@@ -151,23 +154,66 @@ void setup()
   // Reposition entries on screen
   for (int i = 0; i < controllers.size(); i++)
     controllers.get(i).entry.setIndex(panelHeight + 20, i);
-    
-  lblGoal0 = new GLabel(this, 400, panelHeight + 20 + 4, 120, 20, "Goal0");
-  lblGoal1 = new GLabel(this, 400, panelHeight + 40 + 4, 120, 20, "Goal1");
-  
+
+  lblGoal0 = new GLabel(this, 400, panelHeight + 20 + 4, 120, 20, "Goal 0");
+  lblGoal1 = new GLabel(this, 400, panelHeight + 40 + 4, 120, 20, "Goal 1");
+
   List<String> list = new ArrayList<String>();
   list.add("N/A");
   list.addAll(Arrays.asList(Serial.list()));
   String[] strings = list.toArray(new String[list.size()]);
-  dropGoal0 = new GDropList(this, 600, panelHeight + 20, 120, 100);
+  dropGoal0 = new GDropList(this, 500, panelHeight + 20, 120, 100);
   dropGoal0.setItems(strings, 0);
-  dropGoal1 = new GDropList(this, 600, panelHeight + 40, 120, 100);
+  dropGoal1 = new GDropList(this, 500, panelHeight + 40, 120, 100);
   dropGoal1.setItems(strings, 0);
   handleDropListEvents(dropGoal0, GEvent.CLICKED);
   handleDropListEvents(dropGoal1, GEvent.CLICKED);
-  textArea = new GTextArea(this, 4, 200, 796, 400);
+  handleButtonEvents(btnReset, GEvent.CLICKED);
+  textArea = new GTextArea(this, 4, 140, 800 - 8, 600 - 140 - 4, GTextArea.SCROLLBARS_VERTICAL_ONLY);
 
   lastTime = millis();
+}
+
+private void DoSerial(Serial serial)
+{
+  int attackers = (serial == srGoal0) ? 1 : 0;
+  int defenders = (serial == srGoal0) ? 0 : 1;
+  
+  if (serial != null)
+  {
+    while (serial.available() > 0)
+    {
+      String myString = serial.readStringUntil(10);
+      if (myString != null)
+      {
+        // Check for goal
+        if (myString.startsWith("G"))
+        {
+          if (!goalTriggered)
+          {
+            // Print custom message once
+            goalTriggered = true;
+            textArea.appendText(string + "Goal scored!");
+            
+            if (false) // Optional: Get goal 
+            {
+            String numbers = myString.replaceAll("\\D+", "");
+            try
+            {
+              int x = Integer.parseInt(numbers);
+            }
+            catch (NumberFormatException e) {}
+            }
+          }
+        }
+        else
+        {
+          myString = string + myString;
+          textArea.appendText(myString);
+        }
+      }
+    }
+  }
 }
 
 public void handleDropListEvents(GDropList list, GEvent event)
@@ -198,7 +244,8 @@ public void handleDropListEvents(GDropList list, GEvent event)
 
 private void createSelectionInterface()
 {
-  buttonStart = new GButton(this, width - 60, 4, 56, 33, "Start game");
+  buttonStart = new GButton(this, width - 60, 20 + 4, 56, 33, "Start game");
+  btnReset = new GButton(this, width - 60 - 60, 20 + 4, 56, 33, "Reset goal");
 
   GLabel lblControls = new GLabel(this, 0, panelHeight, width, 20);
   lblControls.setText("Game Devices Available");
@@ -229,6 +276,10 @@ public void handleButtonEvents(GButton button, GEvent event)
       addControllers();
       started = true;
     }
+  }
+  else if (button == btnReset && event == GEvent.CLICKED)
+  {
+    goalTriggered = false;
   }
 }
 
@@ -333,29 +384,8 @@ public void draw()
     }
   }
 
-  if (srGoal0 != null)
-  {
-    while (srGoal0.available() > 0)
-    {
-      String myString = srGoal0.readStringUntil(10);
-      if (myString != null)
-      {
-        textArea.appendText(myString);
-      }
-    }
-  }
-  
-  if (srGoal1 != null)
-  {
-    while (srGoal1.available() > 0)
-    {
-      String myString = srGoal1.readStringUntil(10);
-      if (myString != null)
-      {
-        textArea.appendText(myString);
-      }
-    }
-  }
+  DoSerial(srGoal0);
+  DoSerial(srGoal1);
 
   background(255, 255, 220);
 }

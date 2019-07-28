@@ -139,7 +139,7 @@ void ReadSerial()
 void setup()
 {
   Serial.begin(74880);
-  Serial.println(); // Insert newline after initial garbage(?) output
+  Serial.println("Hello World!");
   myServo.attach(SERVO_PIN);
   EEPROM.begin(512);
   delay(10);
@@ -191,7 +191,7 @@ static bool CheckWifiStatus()
     // Connect to WiFi network
     Serial.print("Connecting to \"");
     Serial.print(s_EepromData.credentials.ssid);
-    Serial.print("\" using static IP...");
+    Serial.println("\" using static IP...");
 
     IPAddress ip(s_EepromData.ipAddress);
     IPAddress gateway(s_EepromData.gateway);
