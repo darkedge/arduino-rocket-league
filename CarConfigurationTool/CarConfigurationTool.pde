@@ -45,8 +45,6 @@ public void setup()
   dropList = new GDropList(this, 310, y, 70, 100);
   dropList.setItems(names, 0);
   handleDropListEvents(dropList, GEvent.CLICKED);
-
-  //G4P.setGlobalColorScheme(GCScheme.BLACK_SCHEME);
 }
 
 public void draw()

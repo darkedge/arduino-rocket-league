@@ -14,18 +14,20 @@ private static GButton btnSelSketch;
 
 private enum EDeviceType
 {
+  None,
   PS4,
   Xbox360,
+  XboxOne
 }
 
 private class RLController
 {
   EDeviceType deviceType;
   ControlDevice device;
+  TSelectEntry entry;
 }
 
 private static final int NUM_CARS = 4;
-private RLController[] devices = new RLController[NUM_CARS];
 private boolean started = false;
 
 private static final short port = 0x524C; // ASCII value of "RL" (Rocket League)
@@ -38,9 +40,9 @@ private static byte[] lastCommand;
 private static int accumulator = 0;
 private static int lastTime = 0;
 
-private HashMap<String, Integer> carMapping;
+private Map<String, Integer> carMapping;
 
-List<TSelectEntry> deviceEntries =  new ArrayList<TSelectEntry>();
+private List<RLController> controllers =  new ArrayList<RLController>();
 
 public void settings()
 {
@@ -78,6 +80,11 @@ static void GetLocalAddress()
   catch (Exception e) {}
 }
 
+public static void FillMe()
+{
+  println("filling!");
+}
+
 void setup()
 {
   GetLocalAddress();
@@ -105,11 +112,45 @@ void setup()
         !d.getTypeName().equalsIgnoreCase("unknown") &&
         !d.getTypeName().equalsIgnoreCase("mouse")
        )
-      deviceEntries.add(new TSelectEntry(this, control, d));
+    {
+
+      println(d.toText("    "));
+
+      String s = d.getName();
+      String t = d.getTypeName();
+
+      RLController controller = new RLController();
+      controller.device = d;
+
+      if (s.equals("Controller (XBOX 360 For Windows)") &&
+          t.equals("Gamepad") &&
+          d.getNumberOfButtons() == 11 &&
+          d.getNumberOfSliders() == 5)
+      {
+        controller.deviceType = EDeviceType.Xbox360;
+      }
+      else if (s.equals("Wireless Controller") &&
+               t.equals("Stick") &&
+               d.getNumberOfButtons() == 15 &&
+               d.getNumberOfSliders() == 6)
+      {
+        controller.deviceType = EDeviceType.PS4;
+      }
+      else
+      {
+        controller.deviceType = EDeviceType.None;
+      }
+
+      if (controller.deviceType != EDeviceType.None)
+      {
+        controller.entry = new TSelectEntry(this, control, d, controller.deviceType.name());
+        controllers.add(controller);
+      }
+    }
   }
   // Reposition entries on screen
-  for (int i = 0; i < deviceEntries.size(); i++)
-    deviceEntries.get(i).setIndex(panelHeight + 20, i);
+  for (int i = 0; i < controllers.size(); i++)
+    controllers.get(i).entry.setIndex(panelHeight + 20, i);
 
   lastTime = millis();
 }
@@ -127,48 +168,15 @@ private void createSelectionInterface()
 private void addControllers()
 {
   ControlIO control = ControlIO.getInstance(this);
-  String[] list = {"ps4", "xbox360"}; // Namen van configuratie bestanden
-  int numControllers = 0;
-  for (String string : list) // Alle configuraties proberen
+  String[] list = {"ps4", "xbox360"};
+  for (RLController controller : controllers)
   {
-    while (true)
+    if (!controller.entry.ipList.getSelectedText().equals("N/A"))
     {
-      // Find a device that matches the configuration file
-      ControlDevice gpad = null;
-      try
+      if (controller.deviceType == EDeviceType.Xbox360)
       {
-        gpad = control.getMatchedDeviceSilent(string);
-      }
-      catch (NullPointerException e)
-      {
-        break;
-      }
-
-      if (gpad != null)
-      {
-        RLController controller = devices[numControllers++] = new RLController();
-        controller.device = gpad;
-        if (string.equals("ps4"))
-        {
-          controller.deviceType = EDeviceType.PS4;
-        }
-        else if (string.equals("xbox360"))
-        {
-          controller.deviceType = EDeviceType.Xbox360;
-        }
-        else
-        {
-          println("geen case toegevoegd voor deze control scheme");
-        }
-        println(string + " controller gevonden: " + gpad.getName());
-        if (numControllers == NUM_CARS)
-        {
-          return;
-        }
-      }
-      else
-      {
-        break;
+        //Configuration config = Configuration.makeConfiguration(this, EDeviceType.Xbox360.name());
+        controller.device.matches(Configuration.makeConfiguration(this, EDeviceType.Xbox360.name()));
       }
     }
   }
@@ -202,6 +210,17 @@ void myCustomReceiveHandler(byte[] message, String ip, int port)
         print("Adding car IP to list: ");
         println(ip);
         carMapping.put(ip, -1);
+
+        Set<String> keys = carMapping.keySet();
+        List<String> list = new ArrayList<String>();
+        list.add("N/A");
+        list.addAll(carMapping.keySet());
+        String[] strings = new String[list.size()];
+        list.toArray(strings);
+        for (RLController controller : controllers)
+        {
+          controller.entry.ipList.setItems(strings, 0);
+        }
       }
     }
   }
@@ -230,10 +249,10 @@ public void draw()
 
   if (started)
   {
-    for (int i = 0; i < NUM_CARS; i++)
+    for (RLController controller : controllers)
     {
-      RLController controller = devices[i];
-      if (controller != null)
+
+      if (!controller.entry.ipList.getSelectedText().equals("N/A"))
       {
         byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, 0.0f, 179.0f);
         short forwardBackward = 0;
@@ -251,8 +270,9 @@ public void draw()
         case Xbox360: // Xbox 360 controller
           // TODO
           break;
+        case XboxOne:
+          break;
         default:
-          println("missing case bij controller switch in draw()");
           break;
         }
 
@@ -269,7 +289,7 @@ public void draw()
         if (lastCommand == null || !Arrays.equals(newCommand, lastCommand))
         {
           println(horizontal + " " + forwardBackward + " " + boost);
-          //udpTX.send(newCommand, ips[i], port);
+          udpTX.send(newCommand, controller.entry.ipList.getSelectedText(), port);
           lastCommand = Arrays.copyOf(newCommand, newCommand.length);
         }
       }
@@ -282,12 +302,12 @@ public void draw()
 
 public void dispose()
 {
-  for (TSelectEntry entry : deviceEntries)
+  for (RLController controller : controllers)
   {
-    if (entry.winCofig != null)
+    if (controller.entry.winCofig != null)
     {
-      entry.winCofig.close();
-      entry.winCofig = null;
+      controller.entry.winCofig.close();
+      controller.entry.winCofig = null;
     }
   }
 }

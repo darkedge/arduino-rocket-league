@@ -1,0 +1,4 @@
+Xbox360
+Horizontal	Links/rechts sturen	3	SLIDER	X Axis	0	1.0	0.0
+ForwardBackward	Voor controllers waarbij vooruit en achteruit op dezelfde as zitten	3	SLIDER	Z Axis	0	1.0	0.0
+Boost	Boost	1	BUTTON	Button 1	0	0.0	0.0

@@ -116,8 +116,8 @@ public class TConfigUI implements PConstants, TConstants {
     report = new StringBuffer();
     errCount = 0;
 
-    if (txfDeviceUsage.getText().length() == 0)
-      addToReport("No description of device role provided\n", true);
+    //if (txfDeviceUsage.getText().length() == 0)
+      //addToReport("No description of device role provided\n", true);
 
     validateDescriptors();
 
@@ -136,7 +136,7 @@ public class TConfigUI implements PConstants, TConstants {
       txaStatus.setText(report.toString());
       return;
     }
-    String filename = txfFilename.getText();
+    String filename = this.entry.string;//txfFilename.getText();
     if (filename.length() == 0) {
       addToReport("Name for configuration file required\n", true);
     }
@@ -157,7 +157,7 @@ public class TConfigUI implements PConstants, TConstants {
 
   private String[] makeConfigLines() {
     String[] data = new String[configConnections.size() + 1];
-    data[0] = txfDeviceUsage.getText();
+    data[0] = this.entry.string;//txfDeviceUsage.getText();
     int index = 1;
     for (TConnector ui : configConnections) {
       TDescriptor descUI = (TDescriptor)ui.owner;
@@ -284,10 +284,12 @@ public class TConfigUI implements PConstants, TConstants {
   // Widow GUI stuff
   GWindow window;
   GTabManager tabManager = new GTabManager();
-  GTextField txfFilename, txfDeviceUsage;
+  //GTextField txfFilename, txfDeviceUsage;
   GTextArea txaStatus;
+  TSelectEntry entry;
 
   public TConfigUI(PApplet papp, TSelectEntry entry) {
+    this.entry = entry;
     float px, py, pw;
     device = entry.device;
     device.open();
@@ -349,6 +351,7 @@ public class TConfigUI implements PConstants, TConstants {
     px = window.width - PANEL_WIDTH + 10;
     pw = PANEL_WIDTH - 20;
     py = 10;
+    /*
     GLabel lblDeviceUsagle = new GLabel(window, px, py, pw, 20, "Device role (e.g. Tank controller)");
     lblDeviceUsagle.setTextAlign(GAlign.LEFT, null);
     lblDeviceUsagle.setLocalColorScheme(G4P.GREEN_SCHEME);
@@ -370,7 +373,6 @@ public class TConfigUI implements PConstants, TConstants {
     txfFilename.setLocalColorScheme(G4P.GREEN_SCHEME);
     txfFilename.setPromptText("Enter a filename for this configuration");
     py += 26;
-    float bw = (pw - 20)/3;
     GButton btnClearStatus = new GButton(window, px, py, bw, 20);
     btnClearStatus.setLocalColorScheme(G4P.GREEN_SCHEME);
     btnClearStatus.setText("Clear Status");
@@ -380,7 +382,9 @@ public class TConfigUI implements PConstants, TConstants {
     btnVerify.setLocalColorScheme(G4P.GREEN_SCHEME);
     btnVerify.setText("Verify");
     btnVerify.addEventHandler(this, "verify_click");
+    */
 
+    float bw = (pw - 20)/3;
     GButton btnSave = new GButton(window, px + pw - bw, py, bw, 20);
     btnSave.setLocalColorScheme(G4P.GREEN_SCHEME);
     btnSave.setText("Save");
