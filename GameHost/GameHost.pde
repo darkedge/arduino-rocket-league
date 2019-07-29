@@ -126,7 +126,8 @@ void setup()
       RLController controller = new RLController();
       controller.device = d;
 
-      if (s.equals("Controller (XBOX 360 For Windows)") &&
+      if ((s.equals("Controller (XBOX 360 For Windows)") ||
+           s.equals("XBOX 360 For Windows (Controller)")) &&
           t.equals("Gamepad") &&
           d.getNumberOfButtons() == 11 &&
           d.getNumberOfSliders() == 5)
@@ -343,23 +344,49 @@ public void draw()
 
       if (!controller.entry.ipList.getSelectedText().equals("N/A"))
       {
-        byte horizontal = (byte) PApplet.map(controller.device.getSlider("Horizontal").getValue(), -1.0f, 1.0f, 0.0f, 179.0f);
+        // Steering left/right
+        byte horizontal = (byte)0;
+        ControlSlider sldHorizontal = controller.device.getSlider("Horizontal");
+        if (sldHorizontal != null)
+        {
+          horizontal = (byte)PApplet.map(sldHorizontal.getValue(), -1.0f, 1.0f, 0.0f, 179.0f);
+        }
+
+        // Throttle/reverse
         short forwardBackward = 0;
-        byte boost = controller.device.getButton("Boost").pressed() ? (byte)1 : (byte)0;
+        ControlSlider sldForward = controller.device.getSlider("Forward");
+        ControlSlider sldBackward = controller.device.getSlider("Backward");
+        ControlSlider sldForwardBackward = controller.device.getSlider("ForwardBackward");
+
+        // Boost
+        byte boost = (byte)0;
+        ControlButton btnBoost = controller.device.getButton("Boost");
+        if (btnBoost != null)
+        {
+          boost = btnBoost.pressed() ? (byte)1 : (byte)0;
+        }
 
         switch (controller.deviceType)
         {
-        case PS4: // PS4 controller
-          float forward = PApplet.map(controller.device.getSlider("Forward").getValue(), -1.0f, 1.0f, 0.0f, 1.0f);
-          float backward = PApplet.map(controller.device.getSlider("Backward").getValue(), -1.0f, 1.0f, 0.0f, -1.0f);
-
-          //forwardBackward = (short)forward;
-          forwardBackward = (short)((forward + backward) * 1023.0f);
+        case PS4:
+          if (sldForward != null && sldBackward != null)
+          {
+            float forward = PApplet.map(sldForward.getValue(), -1.0f, 1.0f, 0.0f, 1.0f);
+            float backward = PApplet.map(sldBackward.getValue(), -1.0f, 1.0f, 0.0f, -1.0f);
+            forwardBackward = (short)((forward + backward) * 1023.0f);
+          }
           break;
-        case Xbox360: // Xbox 360 controller
-          // TODO
+        case Xbox360:
+          if (sldForwardBackward != null)
+          {
+            forwardBackward = (short)PApplet.map(sldForwardBackward.getValue(), -1.0f, 1.0f, 1023.0f, -1023.0f);
+          }
           break;
         case XboxOne:
+          if (sldForwardBackward != null)
+          {
+            forwardBackward = (short)PApplet.map(sldForwardBackward.getValue(), -1.0f, 1.0f, 1023.0f, -1023.0f);
+          }
           break;
         default:
           break;
