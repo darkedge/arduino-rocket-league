@@ -102,6 +102,7 @@ static void ConnectDhcp()
   Serial.print(s_EepromData.credentials.ssid);
   Serial.println("\" using DHCP...");
 
+  WiFi.config(0, 0, 0);
   WiFi.begin(s_EepromData.credentials.ssid, s_EepromData.credentials.password);
 }
 
@@ -123,6 +124,9 @@ void ReadSerial()
     {
       numRead = 0;
       memcpy(&s_EepromData.credentials, buf, sizeof(buf));
+      s_EepromData.ipAddress = 0;
+      s_EepromData.subnetMask = 0;
+      s_EepromData.gateway = 0;
       Serial.println("Received config:");
       PrintCredentials();
       memset(buf, 0, sizeof(buf));
