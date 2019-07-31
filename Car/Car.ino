@@ -53,7 +53,7 @@ static Servo myServo;
 static WiFiUDP Udp;
 static EepromData s_EepromData;
 static bool s_Connecting;
-
+static RLPacket s_LastPacket;
 
 static void PrintCredentials()
 {
@@ -216,12 +216,11 @@ static bool CheckWifiStatus()
 
 static void ParseRlPacket()
 {
-  static RLPacket last;
   RLPacket packet;
   Udp.read((char*)&packet, sizeof(packet));
 
   // Steering left/right
-  if (packet.horizontal != last.horizontal)
+  if (packet.horizontal != s_LastPacket.horizontal)
   {
     // set the servo position
     if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
@@ -229,11 +228,15 @@ static void ParseRlPacket()
     {
       myServo.write(packet.horizontal);
     }
-    last.horizontal = packet.horizontal;
+    else
+    {
+      myServo.write(90);
+    }
+    s_LastPacket.horizontal = packet.horizontal;
   }
 
   // Forward/backward
-  if (packet.forwardBackward != last.forwardBackward)
+  if (packet.forwardBackward != s_LastPacket.forwardBackward)
   {
     if (packet.forwardBackward < 0)
     {
@@ -247,26 +250,17 @@ static void ParseRlPacket()
       digitalWrite(IN1, HIGH);
       analogWrite(EN1, packet.forwardBackward);
     }
-    last.forwardBackward = packet.forwardBackward;
+    s_LastPacket.forwardBackward = packet.forwardBackward;
   }
-
-#if 0 // TODO: What does this code do?
-  if (last.forwardBackward == 0)
-  {
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN1, LOW);
-    analogWrite(EN1, packet.forwardBackward);
-  }
-#endif
 
   // Reset neutral on boost
-  if (packet.boost != last.boost)
+  if (packet.boost != s_LastPacket.boost)
   {
     if (packet.boost)
     {
       myServo.writeMicroseconds(1500); // Reset to neutral
     }
-    last.boost = packet.boost;
+    s_LastPacket.boost = packet.boost;
   }
 }
 
@@ -274,6 +268,18 @@ void loop()
 {
   // Check Serial for new configuration data
   ReadSerial();
+
+  static int lastTime, dt;
+  int now = millis();
+  dt += now - lastTime;
+  lastTime = now;
+  if (dt > 250)
+  {
+    dt -= 250;
+    Serial.print(digitalRead(LEFT_BLOCK));
+    Serial.print(" ");
+    Serial.println(digitalRead(RIGHT_BLOCK));
+  }
 
   if (CheckWifiStatus())
   {
