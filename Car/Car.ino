@@ -222,16 +222,7 @@ static void ParseRlPacket()
   // Steering left/right
   if (packet.horizontal != s_LastPacket.horizontal)
   {
-    // set the servo position
-    if (((packet.horizontal < 90) && (digitalRead(LEFT_BLOCK) == LOW)) ||
-        ((packet.horizontal > 90) && (digitalRead(RIGHT_BLOCK) == LOW)))
-    {
-      myServo.write(packet.horizontal);
-    }
-    else
-    {
-      myServo.write(90);
-    }
+    myServo.write(packet.horizontal);
     s_LastPacket.horizontal = packet.horizontal;
   }
 
@@ -252,34 +243,12 @@ static void ParseRlPacket()
     }
     s_LastPacket.forwardBackward = packet.forwardBackward;
   }
-
-  // Reset neutral on boost
-  if (packet.boost != s_LastPacket.boost)
-  {
-    if (packet.boost)
-    {
-      myServo.writeMicroseconds(1500); // Reset to neutral
-    }
-    s_LastPacket.boost = packet.boost;
-  }
 }
 
 void loop()
 {
   // Check Serial for new configuration data
   ReadSerial();
-
-  static int lastTime, dt;
-  int now = millis();
-  dt += now - lastTime;
-  lastTime = now;
-  if (dt > 250)
-  {
-    dt -= 250;
-    Serial.print(digitalRead(LEFT_BLOCK));
-    Serial.print(" ");
-    Serial.println(digitalRead(RIGHT_BLOCK));
-  }
 
   if (CheckWifiStatus())
   {
